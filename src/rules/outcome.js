@@ -14,5 +14,5 @@ export function evaluateOutcome(state, legalActions) {
 }
 
 export function positionKey(state) {
-  return JSON.stringify([state.currentPlayer, state.actionsLeft, state.response, state.board.map(p => p && [p.owner, p.type, p.revealed, p.count, state.rules.pawn.initialDoubleStep && p.moved])]);
+  return JSON.stringify([state.currentPlayer, state.actionsLeft, Boolean(state.bonusRevealPending), state.response, state.board.map(p => p && [p.owner, p.type, p.revealed, p.count, state.rules.pawn.initialDoubleStep && p.moved])]);
 }

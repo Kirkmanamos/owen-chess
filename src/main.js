@@ -1,5 +1,6 @@
 import { createGame, getLegalActions, applyAction, publicView } from './engine.js';
 import { squareName, offset, rowOf, colOf } from './board.js';
+import { hasBonusReveal } from './rules/turn.js';
 
 const $ = selector => document.querySelector(selector);
 const SYMBOLS = { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' };
@@ -199,8 +200,8 @@ function renderSelection(view, actions) {
     return;
   }
   if (!piece) {
-    container.append(make('h2', 'selection-title', view.response ? 'Protect your king.' : 'The board is waiting.'));
-    hint.textContent = view.preparation ? 'No safe escape exists. You still get one preparation action before checkmate is evaluated.' : `Choose an outlined hidden tile. ${openingHelp(view.rules)} Revealed pieces use their normal moves.`;
+    container.append(make('h2', 'selection-title', view.response ? 'Protect your king.' : view.bonusRevealPending ? 'Optional bonus reveal.' : 'The board is waiting.'));
+    hint.textContent = view.preparation ? 'No safe escape exists. You still get one preparation action before checkmate is evaluated.' : view.bonusRevealPending ? 'Reveal one outlined hidden tile for free, or skip to end your turn. The bonus tile cannot also move this turn, except for an immediate king response.' : `Choose an outlined hidden tile. ${openingHelp(view.rules)} Revealed pieces use their normal moves.`;
   } else {
     const title = make('h2', 'selection-title', piece.revealed ? piece.count === 2 ? 'Pawn Stack' : TITLES[piece.type] : 'A hidden possibility.');
     title.append(make('span', 'selection-coordinate', squareName(selected)));
@@ -212,7 +213,7 @@ function renderSelection(view, actions) {
       const reveals = ownActions.filter(a => a.kind === 'reveal');
       if (reveals.length) {
         for (const reveal of reveals) buttons.append(button(revealLabel(reveal), () => perform(reveal)));
-        hint.textContent = `${openingHelp(view.rules)} ${view.rules.turn.revealCostsAction ? 'The slide and reveal together use one action, at any distance.' : 'This opening action is free this game.'} Forward follows your pawn direction.`;
+        hint.textContent = `${openingHelp(view.rules)} ${view.bonusRevealPending ? 'This is your one free bonus reveal, then the turn ends. King responses still apply.' : view.rules.turn.revealCostsAction ? 'The slide and reveal together use one action, at any distance.' : 'This opening action is free this game.'} Forward follows your pawn direction.`;
       } else hint.textContent = view.check[view.currentPlayer] ? 'Your king is in check. Choose an action that makes it safe.' : `No safe reveal destination is available for this tile. ${openingHelp(view.rules)}`;
     } else {
       for (const name of availableModes) {
@@ -225,9 +226,10 @@ function renderSelection(view, actions) {
       if (mode === 'move' && ownActions.some(a => a.kind === 'challenge')) hint.textContent += ' Attacking a hidden tile reveals it; your piece stays put.';
       if (mode === 'stack' && view.rules.stack.stackAndStep) hint.textContent += ' After choosing your partner, you can add one noncapturing step for free.';
       if (piece.count === 2 && view.rules.stack.scouting) hint.textContent += ' After a noncapturing move, you may scout one adjacent hidden enemy for free.';
+      if (view.bonusRevealPending) hint.textContent = 'Only one hidden tile can slide and reveal during this bonus. Choose an outlined hidden tile, or skip to end your turn.';
     }
   }
-  for (const action of actions.filter(a => ['end-turn', 'finish-response'].includes(a.kind))) buttons.append(button(action.kind === 'end-turn' ? ($('#privacy-toggle').checked ? 'End turn & pass device' : 'End turn') : 'Finish king response', () => perform(action), 'button wide'));
+  for (const action of actions.filter(a => ['end-turn', 'finish-response'].includes(a.kind))) buttons.append(button(action.kind === 'end-turn' ? (view.bonusRevealPending ? 'Skip bonus reveal' : $('#privacy-toggle').checked ? 'End turn & pass device' : 'End turn') : 'Finish king response', () => perform(action), 'button wide'));
 }
 
 function renderArmies(view) {
@@ -251,7 +253,7 @@ function render() {
   const actions = getLegalActions(game);
   $('#turn-dot').className = `player-dot p${view.currentPlayer}`;
   $('#turn-title').textContent = view.result ? 'The game is complete' : `Player ${view.currentPlayer} to ${view.response ? 'respond' : 'play'}`;
-  $('#turn-subtitle').textContent = view.response ? 'One response action before adjudication' : `${view.actionsLeft} action${view.actionsLeft === 1 ? '' : 's'} available${view.rules.turn.revealCostsAction ? '' : ' · reveals are free'}`;
+  $('#turn-subtitle').textContent = view.response ? 'One response action before adjudication' : view.bonusRevealPending ? '1 optional bonus reveal · or skip' : `${view.actionsLeft} action${view.actionsLeft === 1 ? '' : 's'} available${hasBonusReveal(view.rules) ? ' · then 1 optional reveal' : view.rules.turn.revealCostsAction ? '' : ' · reveals are free'}`;
   $('#turn-count').textContent = `TURN ${String(view.turnNumber).padStart(2, '0')}`;
   const forwardArrow = view.currentPlayer === 1 ? '↑' : '↓';
   $('#direction-label').textContent = view.rules.exposure.mode === 'flexible'
@@ -260,6 +262,7 @@ function render() {
   const status = $('#status');
   status.className = `status${view.result ? ' finished' : view.check[view.currentPlayer] ? ' check' : ''}`;
   status.textContent = view.result ? `${view.result.winner ? `Player ${view.result.winner} wins` : 'Draw'} · ${view.result.reason}` : view.response ? `${view.response.reason} ${view.preparation ? 'No escape: take one preparation action before adjudication.' : 'You have an immediate action to get out of check.'}` : view.check[view.currentPlayer] ? 'Your king is in check. Your next action must make it safe.' : 'Slide an exposed tile to reveal it, or move a revealed piece.';
+  if (!view.result && view.bonusRevealPending) status.textContent = 'Bonus reveal · Slide one more hidden tile to reveal it, or skip to end your turn.';
   if (pending) status.textContent = 'Action preview · Choose an optional bonus below, or cancel to return to the position. Your turn has not ended.';
   renderSelection(view, actions); // Establish the selected mode before highlights.
   renderBoard(planView(view), actions);
@@ -299,7 +302,7 @@ function showRules() {
   const rules = game.rules;
   const blocks = [
     ['01 / Discover your army', `Player 1 starts on a1–d4. Player 2 starts on a5–d8. Both armies occupy the first four files, facing the empty right half. Each contains the standard 16 chess pieces, shuffled face-down. Neither player can inspect hidden identities. ${openingHelp(rules)} Right always points toward file h. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. This opening move applies regardless of the hidden piece’s identity, with no jumping or capture. Revealing a pawn on its far rank promotes it to a queen. Vacated squares open routes for the next layer.`],
-    ['02 / Take an action', `This game allows ${rules.turn.actionsPerTurn} action${rules.turn.actionsPerTurn === 1 ? '' : 's'} per turn. ${rules.turn.revealCostsAction ? 'The slide and reveal together cost one action, regardless of distance.' : 'Slide-and-reveal actions are free.'} Moving, challenging, stacking, and unstacking each cost one action. A checking action ends the turn early. Select a tile, then a highlighted destination or a Reveal button.`],
+    ['02 / Take an action', `This game allows ${rules.turn.actionsPerTurn} action${rules.turn.actionsPerTurn === 1 ? '' : 's'} per turn. ${rules.turn.revealCostsAction ? 'The slide and reveal together cost one action, regardless of distance.' : 'Slide-and-reveal actions are free.'} Moving, challenging, stacking, and unstacking each cost one action. One bonus reveal: ${hasBonusReveal(rules) ? 'ON — after your normal actions, optionally slide and reveal one additional hidden tile, then pass. You may reveal as your normal action and again as the bonus. The bonus tile cannot also take a normal action that turn. Skip bonus reveal declines it; if no legal reveal exists, the turn ends automatically. A king revealed in check still gets its immediate response.' : rules.turn.bonusReveal ? 'inactive while unlimited free reveals are on.' : 'OFF.'} A checking action ends the turn early, without a bonus. King responses never earn a bonus. Ending a turn early also declines the bonus. Select a tile, then a highlighted destination or a Reveal button.`],
     ['03 / Move & challenge', 'Revealed pieces use chess movement. Hidden tiles block paths and exert no attacks. Attacking a hidden enemy tile flips it, with both tiles staying in place. A later attack can capture it if it is not a king. Pawns move one square forward, capture diagonally, and automatically promote to queens. No castling, initial double move, or en passant.'],
     ['04 / Two pawns, new possibilities', rules.stack.enabled ? `Two ${rules.stack.anyAdjacent ? 'adjacent' : 'horizontally adjacent'} friendly revealed pawns can combine onto either pawn’s square. Both pawns then travel together, moving or capturing one square in any of the eight directions. A stack cannot jump or capture on two squares at once. It may move into attacked squares as long as its own king stays safe; it is not a king. Hidden enemies are challenged in place. Unstack into an empty orthogonal neighbor; one pawn stays. Stacks remain pawns on the far rank until split, then individual pawns there promote. Any-adjacent stacking: ${rules.stack.anyAdjacent ? 'ON — vertical and diagonal pairs also qualify' : 'OFF — horizontal pairs only'}. Stack-and-step: ${rules.stack.stackAndStep ? 'ON — combining may include one optional step to an empty adjacent square' : 'OFF'}. Stack scouting: ${rules.stack.scouting ? 'ON — after a noncapturing stack move, optionally reveal one adjacent hidden enemy for free, including after a stack-and-step' : 'OFF'}. Bonuses form one action; check is resolved afterward. Choose bonus squares on the preview, or finish without them. Cancel or Escape returns to the unchanged board.` : 'Pawn stacking and all three stack experiments are disabled for this game.'],
     ['05 / The king has a chance', 'Kings are never captured. Hidden kings cannot be checked. When a king is revealed in check, its owner immediately receives one response action before checkmate is judged. A challenge that uncovers an attack on your own king also gives you a response. If both kings are attacked, the challenging player responds first. If no safe response exists, take one preparation action; remaining in check afterward loses.'],
@@ -330,6 +333,8 @@ $('#settings-button').addEventListener('click', () => {
   form.elements.exposure.value = game.rules.exposure.mode;
   form.elements.actions.value = game.rules.turn.actionsPerTurn;
   form.elements.freeReveal.checked = !game.rules.turn.revealCostsAction;
+  form.elements.bonusReveal.checked = game.rules.turn.bonusReveal;
+  form.elements.bonusReveal.disabled = form.elements.freeReveal.checked;
   form.elements.stacking.checked = game.rules.stack.enabled;
   for (const key of ['anyAdjacent', 'stackAndStep', 'scouting']) form.elements[key].checked = game.rules.stack[key];
   $('#stack-experiments').disabled = !form.elements.stacking.checked;
@@ -338,11 +343,14 @@ $('#settings-button').addEventListener('click', () => {
 $('#settings-form').elements.stacking.addEventListener('change', event => {
   $('#stack-experiments').disabled = !event.currentTarget.checked;
 });
+$('#settings-form').elements.freeReveal.addEventListener('change', event => {
+  $('#settings-form').elements.bonusReveal.disabled = event.currentTarget.checked;
+});
 $('#settings-form').addEventListener('submit', event => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
   const stack = { enabled: data.has('stacking') };
   for (const key of ['anyAdjacent', 'stackAndStep', 'scouting']) stack[key] = event.currentTarget.elements[key].checked;
-  startGame({ exposure: { mode: data.get('exposure') }, turn: { actionsPerTurn: Number(data.get('actions')), revealCostsAction: !data.has('freeReveal') }, stack });
+  startGame({ exposure: { mode: data.get('exposure') }, turn: { actionsPerTurn: Number(data.get('actions')), revealCostsAction: !data.has('freeReveal'), bonusReveal: event.currentTarget.elements.bonusReveal.checked }, stack });
 });
 render();

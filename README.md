@@ -1,4 +1,4 @@
-# Veiled Crowns — Version 0.4.0
+# Veiled Crowns — Version 0.5.0
 
 A playable local two-player prototype of a hidden-army strategy game. The title is a working name. The rules are deliberately experimental.
 
@@ -45,6 +45,14 @@ Choose the stacking partner or movement destination first. The board then previe
 
 Games live in memory. Refreshing or restarting reshuffles the armies. There is no AI opponent, online play, persistence, or undo. The browser holds the full state internally; this is a shared-device prototype, not a secure online hidden-information server.
 
+### One bonus reveal per turn
+
+The independent **One bonus reveal per turn** toggle in **Playtest rules** is **off by default**. When enabled, finishing your normal action(s) offers one optional free slide-and-reveal of another hidden tile, followed by the opponent's turn. The board highlights eligible tiles and offers **Skip bonus reveal** inline, without a popup. If no legal reveal exists, the turn ends automatically.
+
+The normal action can itself be a reveal, so a one-action turn can uncover two tiles. The bonus cannot move a revealed piece, capture, challenge, stack, or unstack. Its newly revealed piece cannot take another normal action that turn. Check still ends a turn immediately; a king revealed in check still receives its response, and response actions never earn bonuses. Ending a multi-action turn early also declines the bonus.
+
+The bonus is once per turn, even with two or three normal actions, and combines with all three stack experiments. **Slide-and-reveal is free (unlimited)** supersedes it; that setting disables the bonus checkbox while retaining its choice. Applying playtest settings starts a new game, and **New game** retains the rules. Queen movement remains unchanged.
+
 ## Architecture
 
 | File | Responsibility |
@@ -63,6 +71,7 @@ Games live in memory. Refreshing or restarting reshuffles the armies. There is n
 | `tests/engine.test.js` | Rule scenarios, privacy invariants, and material conservation |
 | `tests/exposure.test.js` | Reveal distances, blockers, player directions, promotion, privacy and king responses |
 | `tests/stack-experiments.test.js` | All eight experiment combinations, compound actions, scouting privacy and king responses |
+| `tests/bonus-reveal.test.js` | Bounded reveal turns, skipping, check responses, privacy, stacking interactions and seeded play |
 
 The engine exports `createGame(overrides, random)`, `getLegalActions(state)`, `applyAction(state, action)`, and `publicView(state)`. All actions are validated by the engine. `applyAction` returns a new state and never mutates the supplied one. An injectable random function supports deterministic tests.
 

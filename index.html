@@ -12,7 +12,7 @@
   <div class="page-shell">
     <header class="site-header">
       <a class="brand" href="./" aria-label="Veiled Crowns home"><span class="brand-mark" aria-hidden="true">♚</span><span>Veiled Crowns<small>A GAME OF DISCOVERY</small></span></a>
-      <div class="header-actions"><span class="version">LOCAL PLAY <span>·</span> V0.4.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
+      <div class="header-actions"><span class="version">LOCAL PLAY <span>·</span> V0.5.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
     </header>
 
     <main>
@@ -39,12 +39,14 @@
 
   <dialog id="handoff" class="handoff-dialog" aria-labelledby="handoff-title" aria-describedby="handoff-copy"><div id="handoff-mark" class="handoff-mark p1" aria-hidden="true">♚</div><p class="eyebrow">A MOMENT BETWEEN MOVES</p><h2 id="handoff-title"></h2><p id="handoff-copy">Pass the device. Hidden identities stay unknown to both players until a tile is revealed.</p><button id="ready-button" class="button primary wide"></button><p class="dialog-footnote">Share the board. Keep the mystery.</p></dialog>
 
-  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.4.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
+  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.5.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
 
   <dialog id="settings-dialog" class="info-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><p class="eyebrow">THE PLAYTEST LAB</p><button class="icon-button" data-close="settings-dialog" aria-label="Close playtest rules">×</button></div><h2 id="settings-title">Try a different rhythm.</h2><p class="muted">These rules apply to a new randomized game. Starting it replaces the current game.</p><form id="settings-form">
     <label class="field">Opening reveal move<select name="exposure"><option value="flexible">1–4 right, or 1 forward or left</option><option value="right-empty">Classic: one square right</option><option value="either-horizontal">Classic: one square left or right</option></select><small>Slide along a clear path into an empty square, then flip. Forward is ↑ for Player 1 and ↓ for Player 2. Distance does not add actions.</small></label>
     <label class="field">Actions per turn<select name="actions"><option value="1">1 action · original prototype</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
-    <label class="check-field"><input type="checkbox" name="freeReveal"> Slide-and-reveal is free</label>
+    <label class="check-field"><input type="checkbox" name="freeReveal"> Slide-and-reveal is free (unlimited)</label>
+    <label class="check-field"><input type="checkbox" name="bonusReveal"> One bonus reveal per turn</label>
+    <p class="form-note">Off by default. After your normal action(s), optionally slide and reveal one extra hidden tile, then pass. You can skip it. Check and king responses take priority. Inactive while unlimited free reveals are on.</p>
     <label class="check-field"><input type="checkbox" name="stacking" checked> Allow pawn stacking</label>
     <p class="form-note">A pawn stack moves or captures one square in any direction. Both pawns travel together; there are no jumps or double captures.</p>
     <fieldset id="stack-experiments" class="stack-experiments">

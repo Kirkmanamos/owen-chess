@@ -1,4 +1,4 @@
-# Design notes — Version 0.4.0
+# Design notes — Version 0.5.0
 
 This is an evolving original game, not a chess rules implementation with a decorative hidden mode. Hidden identities, directional emergence, randomized armies, and pawn stacks are central. “Veiled Crowns” is only a working title.
 
@@ -72,6 +72,17 @@ All three toggles start **off**, may be combined freely, and require stack enabl
 - The board keeps a fixed orientation so “right” always means toward file h. Turns switch immediately without a popup by default. The **Pass-device screen between turns** checkbox optionally hides the board and history between players; it can change during a game without restarting. There is no owner-only peek.
 - Action history contains only facts already revealed publicly. The UI receives a redacted projection and no hidden type, identity-encoding id, tooltip, or accessibility label.
 
+#### Optional bonus reveal (Version 0.5)
+
+- **One bonus reveal per turn** (`turn.bonusReveal`) is an independent toggle, **off by default**. It changes no piece's movement, including the queen's range or capture frequency.
+- After the player spends all normal actions, offer one free voluntary slide-and-reveal of an eligible hidden friendly tile. Its path, landing square, known king safety, and promotion use the normal reveal rules. It never captures or challenges an enemy.
+- **Timing assumption:** the bonus comes last. A normal reveal can be followed by a bonus reveal of a different tile, including one just exposed by the first slide. Once the bonus is taken, pass the turn; the bonus tile cannot also take a normal action that turn.
+- **Skip bonus reveal** passes immediately without changing the board. If there are no legal bonus reveals, pass automatically. The option appears inline on the board; no additional modal or handoff appears until the player actually changes.
+- Giving check ends an ordinary turn immediately, without a bonus. A bonus reveal that gives check passes to the checked player. If the bonus reveals its own king in check, the existing immediate response takes priority. Responses never earn a bonus, and a trapped king still has only one preparation action before adjudication.
+- With two or three normal actions, there is still only one bonus after the final action. Choosing **End turn** early declines any unused actions and the bonus. The bonus allowance is never saved across turns.
+- Unlimited free reveals supersede this experiment. The settings UI disables the bonus checkbox while retaining its choice, and the engine treats it as inactive. All stack experiments remain independently compatible; stack scouting reveals an enemy, while this bonus reveals one of your own hidden tiles.
+- The bonus phase is explicit public turn state and part of repetition detection. Legal highlights and bonus availability use only public occupancy and revealed attacks, never secret identities.
+
 ## Temporary assumptions
 
 The author clarified that both armies occupy files a–d in the two left corners, and that the horizontal move itself reveals a tile. These replace the original opposite-diagonal-corner interpretation and stationary voluntary reveal.
@@ -83,6 +94,8 @@ For Version 0.2.1, the author confirmed keeping Move & Challenge after encounter
 For Version 0.3, the author requested any-adjacent stacking, stack-and-step, and stack scouting as three independent playtest toggles. All are implemented and off by default. The atomic resolution, optional choices, and scouting after a bonus step are temporary interpretations documented above.
 
 For Version 0.4, the author expanded the opening to up to four squares right, or one square forward or left when available. The temporary interpretation is a straight clear slide with no jumping or capturing, and forward follows each player's pawn direction. The new profile is the default. Move & Challenge and all three stack toggles retain their existing behavior.
+
+For Version 0.5, the author requested a separate bonus-reveal toggle to test development under queen pressure, and rejected queen range caps and cooldowns. The temporary timing is one optional reveal after all normal actions, with check and king responses taking priority. The toggle starts off; no attack-warning feature or queen restriction is added.
 
 The following details are provisional implementations, not claims that the design is settled:
 
@@ -105,6 +118,8 @@ The following details are provisional implementations, not claims that the desig
 | May a long opening change direction or pass through occupied tiles? | No; one straight, clear slide | `rules/exposure.js` |
 | What if the revealed tile is a pawn on its far rank? | Reveal, then automatically promote using the usual promotion setting | `engine.js` |
 | Does emergence cost the whole turn? | One action; free reveals / multiple actions available | `rules/turn.js`, `rules/config.js` |
+| Does one bounded bonus help players develop against an early queen? | **One bonus reveal per turn**, off by default; once after all paid actions, inline skip, no bonus after giving check or king responses; unlimited free reveals supersede it | `rules/turn.js`, `engine.js`, `rules/config.js` |
+| Should the bonus come before or after normal movement? | After only, so its tile cannot also move in that turn; newly revealed kings keep their response exception | `engine.js` |
 | Should pawns retain opening directions after emergence? | Opposite vertical directions | `board.js`, `rules/movement.js`, `rules/pawn-stack.js` |
 | What happens when attacking an unknown tile? | Challenge, reveal in place, no capture or displacement | `rules/movement.js`, `engine.js` |
 | Must a challenged tile still perform a horizontal opening later? | No; forced revelation unlocks normal movement | `engine.js` |
@@ -142,6 +157,8 @@ The following details are provisional implementations, not claims that the desig
 - Transporting a stack to the far rank and splitting sideways can produce two queens at once. The opponent has an intervening turn under the default action economy, but this may still be too strong.
 - Free reveals can unpack a large portion of an army before passing. Multiple actions can let a single piece challenge and capture on one turn; giving check interrupts that sequence.
 - Combining all three stack experiments improves formation, tempo, and information gathering together. Scouting can expose a king while the stack is already adjacent and attacking it. The response rule remains active; watch whether this combination is too strong.
+- A bonus reveal helps both the defending and attacking army develop. A normal reveal plus bonus can expose two tiles per turn, and combining this with stack scouting can produce several discoveries. Compare the bonus alone before combining experiments; it is not established as a balance fix.
+- The bonus comes after normal actions, so emerging pieces can still be captured on the opponent's turn. Check suppresses the bonus, which may give checking attacks extra value. These are deliberate starting assumptions for playtesting.
 
 ## Interesting situations discovered during implementation
 

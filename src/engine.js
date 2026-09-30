@@ -5,14 +5,14 @@ import { revealDestinations } from './rules/exposure.js';
 import { movementActions } from './rules/movement.js';
 import { combinationActions, stackExperiments } from './rules/pawn-stack.js';
 import { isInCheck, newlyCheckedKing } from './rules/king.js';
-import { actionCost, beginTurn } from './rules/turn.js';
+import { actionCost, beginTurn, hasBonusReveal } from './rules/turn.js';
 import { evaluateOutcome, positionKey } from './rules/outcome.js';
 
 export function createGame(overrides = {}, random = Math.random) {
   const rules = createRules(overrides);
   const state = {
     rules, board: setupBoard(rules, random), currentPlayer: 1, actionsLeft: rules.turn.actionsPerTurn,
-    turnNumber: 1, actionNumber: 0, turnActivity: false, response: null, responseQueue: [],
+    turnNumber: 1, actionNumber: 0, turnActivity: false, bonusRevealPending: false, response: null, responseQueue: [],
     captured: [], history: [], result: null, quietActions: 0, repetitions: {}
   };
   state.repetitions[positionKey(state)] = 1;
@@ -23,6 +23,7 @@ function candidateActions(state) {
   return state.board.flatMap((piece, from) => {
     if (piece?.owner !== state.currentPlayer) return [];
     if (!piece.revealed) return revealDestinations(state, from).map(to => ({ kind: 'reveal', from, to }));
+    if (state.bonusRevealPending && !state.response) return [];
     return [...movementActions(state, from), ...combinationActions(state, from)].flatMap(action => stackExperiments(state, action));
   });
 }
@@ -103,13 +104,13 @@ function describeAction(before, after, action) {
   if (action.kind === 'reveal') {
     const revealedType = before.board[action.from].type;
     const promotion = revealedType !== after.board[action.to].type ? ` Promoted to ${after.board[action.to].type}.` : '';
-    return `Slid ${from} → ${to}, revealing ${revealedType}.${promotion}`;
+    return `${before.bonusRevealPending ? 'Bonus reveal: ' : ''}Slid ${from} → ${to}, revealing ${revealedType}.${promotion}`;
   }
   if (action.kind === 'challenge') return `Challenged ${to}: ${after.board[action.to].type} revealed. Attacker stays on ${from}.`;
   if (action.kind === 'stack') return `Stacked pawns from ${from} onto ${to}${action.step === undefined ? '' : `, then stepped to ${squareName(action.step)}`}.${scoutText}`;
   if (action.kind === 'unstack') return `Unstacked a pawn from ${from} to ${to}.`;
   if (action.kind === 'finish-response') return 'Finished the king response with no escape.';
-  if (action.kind === 'end-turn') return 'Ended the turn.';
+  if (action.kind === 'end-turn') return before.bonusRevealPending ? 'Skipped the bonus reveal.' : 'Ended the turn.';
   const captures = after.captured.slice(before.captured.length);
   const captureText = captures.length ? ` Captured ${captures.map(p => p.count === 2 ? 'a pawn stack' : p.type).join(' and ')}.` : '';
   const promotion = before.board[action.from].type !== after.board[action.to].type ? ` Promoted to ${after.board[action.to].type}.` : '';
@@ -126,6 +127,7 @@ export function applyAction(state, requested) {
   if (!action) throw new Error('That action is not legal in the current position.');
   const actor = state.currentPlayer;
   const next = changeBoard(state, action);
+  next.bonusRevealPending = false;
   next.actionNumber += 1;
   next.turnActivity = true;
   next.history = [...state.history, { number: next.actionNumber, player: actor, text: describeAction(state, next, action) }];
@@ -155,8 +157,16 @@ export function applyAction(state, requested) {
     if (next.currentPlayer !== next.response.player) switchTurn(next, next.response.player);
     next.actionsLeft = 1;
   } else {
-    next.actionsLeft -= actionCost(action, state.rules);
-    if (state.response || action.kind === 'end-turn' || next.actionsLeft <= 0 || isInCheck(next, otherPlayer(actor))) switchTurn(next, otherPlayer(actor));
+    next.actionsLeft -= state.bonusRevealPending ? 0 : actionCost(action, state.rules);
+    if (state.response || state.bonusRevealPending || action.kind === 'end-turn' || isInCheck(next, otherPlayer(actor))) {
+      switchTurn(next, otherPlayer(actor));
+    } else if (next.actionsLeft <= 0) {
+      // Offer one optional slide only after ordinary actions are exhausted.
+      // Check and reveal/ambush responses take priority above. Availability is
+      // tested with hidden identities concealed, just like normal highlights.
+      next.bonusRevealPending = hasBonusReveal(next.rules);
+      if (!next.bonusRevealPending || !getLegalActions(next).some(a => a.kind === 'reveal')) switchTurn(next, otherPlayer(actor));
+    }
   }
   const key = positionKey(next);
   next.repetitions[key] = (next.repetitions[key] || 0) + 1;
@@ -172,6 +182,7 @@ export function publicView(state) {
       ? { owner: piece.owner, revealed: true, type: piece.type, count: piece.count }
       : { owner: piece.owner, revealed: false })),
     currentPlayer: state.currentPlayer, turnNumber: state.turnNumber, actionsLeft: state.actionsLeft,
+    bonusRevealPending: state.bonusRevealPending,
     actionNumber: state.actionNumber, response: state.response && { ...state.response },
     preparation: isPreparationResponse(state), result: state.result && { ...state.result },
     captured: state.captured.map(p => ({ owner: p.owner, type: p.type, count: p.count })),

@@ -2,7 +2,7 @@
 export const DEFAULT_RULES = {
   setup: { formation: 'left-corners' },
   exposure: { mode: 'flexible', rightRange: 4, leftRange: 1, forwardRange: 1 },
-  turn: { actionsPerTurn: 1, revealCostsAction: true },
+  turn: { actionsPerTurn: 1, revealCostsAction: true, bonusReveal: false },
   hidden: { attack: 'challenge' },
   king: { revealResponse: true, allowPreparationWhenTrapped: true },
   pawn: { initialDoubleStep: false, promotion: 'queen' },
@@ -24,6 +24,7 @@ export function createRules(overrides = {}) {
     if (!Number.isInteger(rules.exposure[key]) || rules.exposure[key] < 0 || rules.exposure[key] > 7) throw new Error(`exposure.${key} must be an integer from 0 to 7`);
   }
   if (!Number.isInteger(rules.turn.actionsPerTurn) || rules.turn.actionsPerTurn < 1 || rules.turn.actionsPerTurn > 3) throw new Error('Actions per turn must be 1–3');
+  if (typeof rules.turn.bonusReveal !== 'boolean') throw new Error('turn.bonusReveal must be a boolean');
   if (rules.setup.formation !== 'left-corners' || rules.hidden.attack !== 'challenge') throw new Error('This setup or hidden attack policy needs a new rule implementation');
   if (!['orthogonal', 'any-adjacent'].includes(rules.stack.unstack)) throw new Error('Unsupported unstack rule');
   for (const key of ['enabled', 'anyAdjacent', 'stackAndStep', 'scouting']) {
