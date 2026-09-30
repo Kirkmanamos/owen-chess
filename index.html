@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f1e9">
+  <title>Veiled Crowns · A game of discovery</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232c4941'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-size='48' fill='%23f7f2df'%3E♚%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Veiled Crowns home"><span class="brand-mark" aria-hidden="true">♚</span><span>Veiled Crowns<small>A GAME OF DISCOVERY</small></span></a>
+      <div class="header-actions"><span class="version">LOCAL PLAY <span>·</span> V0.3.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
+    </header>
+
+    <main>
+      <div class="intro"><div><p class="eyebrow">THE ARMY IS A MYSTERY. THE STRATEGY IS YOURS.</p><h1>Uncover your next move.</h1></div><p>Two players. Thirty-two hidden tiles.<br>A familiar board with unfamiliar possibilities.</p></div>
+      <div class="play-area">
+        <section class="board-section" aria-label="Game board and turn status">
+          <div class="turn-bar"><div class="turn-player"><span id="turn-dot" class="player-dot p1"></span><div><strong id="turn-title"></strong><span id="turn-subtitle"></span></div></div><span id="turn-count" class="turn-count"></span></div>
+          <div id="status" class="status" role="status" aria-live="polite"></div>
+          <div class="board-frame"><div class="board-surround"><div id="rank-labels" class="rank-labels" aria-hidden="true"></div><div id="board" class="board" role="group" aria-label="Chessboard. Hidden tiles slide horizontally to reveal. Player 1 pawns move toward rank 8; Player 2 pawns toward rank 1. Use arrow keys to navigate."></div><div id="file-labels" class="file-labels" aria-hidden="true"></div></div></div>
+          <div class="board-footer"><span><i class="legend-ring"></i> Can reveal</span><span><i class="legend-dot"></i> Legal action</span><span id="direction-label">Player 1 moves ↑</span></div>
+        </section>
+
+        <aside class="sidebar" aria-label="Game controls">
+          <section class="panel action-panel"><p class="eyebrow">YOUR NEXT ACTION</p><div id="selection"></div><div id="action-modes" class="action-modes"></div><div id="action-buttons" class="action-buttons"></div><p id="action-hint" class="muted"></p></section>
+          <section class="panel armies-panel"><div class="panel-heading"><h2>The armies</h2><span class="micro-label">REVEALED / REMAINING</span></div><div id="armies"></div></section>
+          <section class="panel history-panel"><div class="panel-heading"><h2>At the table</h2><span id="history-count" class="micro-label">0 ACTIONS</span></div><ol id="history" class="history" aria-label="Public action history"></ol></section>
+          <label class="privacy-toggle"><input id="privacy-toggle" type="checkbox"> Pass-device screen between turns</label>
+          <button id="settings-button" class="settings-button"><span aria-hidden="true">⚙</span> Playtest rules <span aria-hidden="true">↗</span></button>
+        </aside>
+      </div>
+      <footer class="page-footer"><span>Reveal. Maneuver. Surprise.</span><span>An evolving game · Rules are made to be playtested.</span></footer>
+    </main>
+  </div>
+
+  <dialog id="handoff" class="handoff-dialog" aria-labelledby="handoff-title" aria-describedby="handoff-copy"><div id="handoff-mark" class="handoff-mark p1" aria-hidden="true">♚</div><p class="eyebrow">A MOMENT BETWEEN MOVES</p><h2 id="handoff-title"></h2><p id="handoff-copy">Pass the device. Hidden identities stay unknown to both players until a tile is revealed.</p><button id="ready-button" class="button primary wide"></button><p class="dialog-footnote">Share the board. Keep the mystery.</p></dialog>
+
+  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.3.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
+
+  <dialog id="settings-dialog" class="info-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><p class="eyebrow">THE PLAYTEST LAB</p><button class="icon-button" data-close="settings-dialog" aria-label="Close playtest rules">×</button></div><h2 id="settings-title">Try a different rhythm.</h2><p class="muted">These rules apply to a new randomized game. Starting it replaces the current game.</p><form id="settings-form">
+    <label class="field">Horizontal reveal direction<select name="exposure"><option value="right-empty">Slide one square right & reveal</option><option value="either-horizontal">Slide one square left or right & reveal</option></select><small>Both armies begin in files a–d. A hidden tile slides into an empty horizontal neighbor and flips.</small></label>
+    <label class="field">Actions per turn<select name="actions"><option value="1">1 action · original prototype</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
+    <label class="check-field"><input type="checkbox" name="freeReveal"> Slide-and-reveal is free</label>
+    <label class="check-field"><input type="checkbox" name="stacking" checked> Allow pawn stacking</label>
+    <p class="form-note">A pawn stack moves or captures one square in any direction. Both pawns travel together; there are no jumps or double captures.</p>
+    <fieldset id="stack-experiments" class="stack-experiments">
+      <legend>Pawn stack experiments</legend>
+      <p class="form-note">Mix any combination. All three are off by default.</p>
+      <label class="check-field"><input type="checkbox" name="anyAdjacent"><span>Any-adjacent stacking<small>Combine friendly revealed pawns horizontally, vertically, or diagonally.</small></span></label>
+      <label class="check-field"><input type="checkbox" name="stackAndStep"><span>Stack-and-step<small>After combining, optionally step to an empty adjacent square in the same action.</small></span></label>
+      <label class="check-field"><input type="checkbox" name="scouting"><span>Stack scouting<small>After a noncapturing stack move, optionally reveal one adjacent hidden enemy for free. Also works after stack-and-step.</small></span></label>
+    </fieldset>
+    <p class="form-note">A checking action ends your turn. A king response always gets one action.</p><button class="button primary wide" type="submit">Start with these rules ↗</button>
+  </form></dialog>
+
+  <dialog id="restart-dialog" class="info-dialog compact-dialog" aria-labelledby="restart-title"><p class="eyebrow">A FRESH START</p><h2 id="restart-title">Shuffle the armies?</h2><p class="muted">This replaces the current game with a new randomized position using the same playtest rules.</p><div class="dialog-actions"><button class="button" data-close="restart-dialog">Keep playing</button><button id="confirm-restart" class="button primary">New game</button></div></dialog>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

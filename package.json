@@ -1,0 +1,15 @@
+{
+  "name": "veiled-crowns",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "A local two-player hidden-army strategy game prototype",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "build": "node scripts/build-site.mjs",
+    "test": "node --test",
+    "check": "node --check src/main.js && node --check src/engine.js && node --test"
+  },
+  "engines": { "node": ">=20" }
+}
