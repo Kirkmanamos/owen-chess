@@ -12,7 +12,7 @@
   <div class="page-shell">
     <header class="site-header">
       <a class="brand" href="./" aria-label="Veiled Crowns home"><span class="brand-mark" aria-hidden="true">♚</span><span>Veiled Crowns<small>A GAME OF DISCOVERY</small></span></a>
-      <div class="header-actions"><span class="version">LOCAL PLAY <span>·</span> V0.3.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
+      <div class="header-actions"><span class="version">LOCAL PLAY <span>·</span> V0.4.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
     </header>
 
     <main>
@@ -21,7 +21,7 @@
         <section class="board-section" aria-label="Game board and turn status">
           <div class="turn-bar"><div class="turn-player"><span id="turn-dot" class="player-dot p1"></span><div><strong id="turn-title"></strong><span id="turn-subtitle"></span></div></div><span id="turn-count" class="turn-count"></span></div>
           <div id="status" class="status" role="status" aria-live="polite"></div>
-          <div class="board-frame"><div class="board-surround"><div id="rank-labels" class="rank-labels" aria-hidden="true"></div><div id="board" class="board" role="group" aria-label="Chessboard. Hidden tiles slide horizontally to reveal. Player 1 pawns move toward rank 8; Player 2 pawns toward rank 1. Use arrow keys to navigate."></div><div id="file-labels" class="file-labels" aria-hidden="true"></div></div></div>
+          <div class="board-frame"><div class="board-surround"><div id="rank-labels" class="rank-labels" aria-hidden="true"></div><div id="board" class="board" role="group" aria-label="Chessboard. Select a hidden tile to see its legal reveal destinations. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. Use arrow keys to navigate."></div><div id="file-labels" class="file-labels" aria-hidden="true"></div></div></div>
           <div class="board-footer"><span><i class="legend-ring"></i> Can reveal</span><span><i class="legend-dot"></i> Legal action</span><span id="direction-label">Player 1 moves ↑</span></div>
         </section>
 
@@ -39,10 +39,10 @@
 
   <dialog id="handoff" class="handoff-dialog" aria-labelledby="handoff-title" aria-describedby="handoff-copy"><div id="handoff-mark" class="handoff-mark p1" aria-hidden="true">♚</div><p class="eyebrow">A MOMENT BETWEEN MOVES</p><h2 id="handoff-title"></h2><p id="handoff-copy">Pass the device. Hidden identities stay unknown to both players until a tile is revealed.</p><button id="ready-button" class="button primary wide"></button><p class="dialog-footnote">Share the board. Keep the mystery.</p></dialog>
 
-  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.3.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
+  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.4.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
 
   <dialog id="settings-dialog" class="info-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><p class="eyebrow">THE PLAYTEST LAB</p><button class="icon-button" data-close="settings-dialog" aria-label="Close playtest rules">×</button></div><h2 id="settings-title">Try a different rhythm.</h2><p class="muted">These rules apply to a new randomized game. Starting it replaces the current game.</p><form id="settings-form">
-    <label class="field">Horizontal reveal direction<select name="exposure"><option value="right-empty">Slide one square right & reveal</option><option value="either-horizontal">Slide one square left or right & reveal</option></select><small>Both armies begin in files a–d. A hidden tile slides into an empty horizontal neighbor and flips.</small></label>
+    <label class="field">Opening reveal move<select name="exposure"><option value="flexible">1–4 right, or 1 forward or left</option><option value="right-empty">Classic: one square right</option><option value="either-horizontal">Classic: one square left or right</option></select><small>Slide along a clear path into an empty square, then flip. Forward is ↑ for Player 1 and ↓ for Player 2. Distance does not add actions.</small></label>
     <label class="field">Actions per turn<select name="actions"><option value="1">1 action · original prototype</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
     <label class="check-field"><input type="checkbox" name="freeReveal"> Slide-and-reveal is free</label>
     <label class="check-field"><input type="checkbox" name="stacking" checked> Allow pawn stacking</label>

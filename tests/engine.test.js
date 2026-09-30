@@ -46,9 +46,11 @@ test('each shuffled army has 16 pieces in the first four files and its own corne
 
 test('exactly four tiles in file d are initially exposed for each player', () => {
   const state = createGame();
-  assert.deepEqual(getLegalActions(state).map(a => squareName(a.from)).sort(), ['d1', 'd2', 'd3', 'd4']);
+  assert.deepEqual([...new Set(getLegalActions(state).map(a => squareName(a.from)))].sort(), ['d1', 'd2', 'd3', 'd4']);
+  assert.equal(getLegalActions(state).length, 16);
   state.currentPlayer = 2;
-  assert.deepEqual(getLegalActions(state).map(a => squareName(a.from)).sort(), ['d5', 'd6', 'd7', 'd8']);
+  assert.deepEqual([...new Set(getLegalActions(state).map(a => squareName(a.from)))].sort(), ['d5', 'd6', 'd7', 'd8']);
+  assert.equal(getLegalActions(state).length, 16);
 });
 
 test('revealing slides the tile right, flips it, and exposes the next layer', () => {
@@ -73,10 +75,11 @@ test('alternate exposure permits leftward reveals but never vertical ones or boa
   assert.deepEqual(destinations(left, 'b2', 'reveal'), ['a2']);
 });
 
-test('every hidden type shares the same horizontal opening move, then uses its revealed movement', () => {
+test('every hidden type shares the same opening options, then uses its revealed movement', () => {
   for (const type of ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn']) {
     const state = position({ d4: piece(type, 1, false), a8: piece('king', 2, false) }, { turn: { actionsPerTurn: 2 } });
-    assert.deepEqual(actions(state, 'd4'), [{ kind: 'reveal', from: sq('d4'), to: sq('e4') }]);
+    assert.deepEqual(destinations(state, 'd4', 'reveal'), ['c4', 'd5', 'e4', 'f4', 'g4', 'h4']);
+    assert.ok(actions(state, 'd4').every(a => a.kind === 'reveal'));
     const next = act(state, 'reveal', 'd4', 'e4');
     assert.ok(actions(next, 'e4').every(a => a.kind !== 'reveal'));
     if (type === 'bishop') assert.ok(!destinations(next, 'e4').includes('f4'));
@@ -85,16 +88,17 @@ test('every hidden type shares the same horizontal opening move, then uses its r
   }
 });
 
-test('a horizontal reveal cannot vacate a blocker and expose an already revealed king', () => {
+test('revealing a blocker must keep the known king safe, including a forward reveal', () => {
   const state = position({ a1: piece('king'), a2: piece('bishop', 1, false), a8: piece('rook', 2), h8: piece('king', 2) });
   assert.equal(isExposed(state, sq('a2')), true);
-  assert.deepEqual(actions(state, 'a2'), []);
+  assert.deepEqual(destinations(state, 'a2', 'reveal'), ['a3']);
 });
 
 test('hidden tiles cannot move or attack', () => {
   const state = position({ d4: piece('queen', 1, false) });
   assert.deepEqual(attackedSquares(state, sq('d4')), []);
-  assert.deepEqual(actions(state, 'd4').map(a => a.kind), ['reveal']);
+  assert.ok(actions(state, 'd4').length > 0);
+  assert.ok(actions(state, 'd4').every(a => a.kind === 'reveal'));
 });
 
 test('rook rays stop at either army and challenge a hidden enemy without seeing its type', () => {

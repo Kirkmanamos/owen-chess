@@ -1,7 +1,7 @@
 // Rule data lives here; interchangeable algorithms live in the neighboring modules.
 export const DEFAULT_RULES = {
   setup: { formation: 'left-corners' },
-  exposure: { mode: 'right-empty' },
+  exposure: { mode: 'flexible', rightRange: 4, leftRange: 1, forwardRange: 1 },
   turn: { actionsPerTurn: 1, revealCostsAction: true },
   hidden: { attack: 'challenge' },
   king: { revealResponse: true, allowPreparationWhenTrapped: true },
@@ -19,7 +19,10 @@ export function createRules(overrides = {}) {
       rules[module][key] = value;
     }
   }
-  if (!['right-empty', 'either-horizontal'].includes(rules.exposure.mode)) throw new Error('Unsupported exposure mode');
+  if (!['flexible', 'right-empty', 'either-horizontal'].includes(rules.exposure.mode)) throw new Error('Unsupported exposure mode');
+  for (const key of ['rightRange', 'leftRange', 'forwardRange']) {
+    if (!Number.isInteger(rules.exposure[key]) || rules.exposure[key] < 0 || rules.exposure[key] > 7) throw new Error(`exposure.${key} must be an integer from 0 to 7`);
+  }
   if (!Number.isInteger(rules.turn.actionsPerTurn) || rules.turn.actionsPerTurn < 1 || rules.turn.actionsPerTurn > 3) throw new Error('Actions per turn must be 1–3');
   if (rules.setup.formation !== 'left-corners' || rules.hidden.attack !== 'challenge') throw new Error('This setup or hidden attack policy needs a new rule implementation');
   if (!['orthogonal', 'any-adjacent'].includes(rules.stack.unstack)) throw new Error('Unsupported unstack rule');

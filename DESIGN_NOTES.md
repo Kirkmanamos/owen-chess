@@ -1,31 +1,31 @@
-# Design notes — Version 0.3.0
+# Design notes — Version 0.4.0
 
-This is an evolving original game, not a chess rules implementation with a decorative hidden mode. Hidden identities, horizontal emergence, randomized armies, and pawn stacks are central. “Veiled Crowns” is only a working title.
+This is an evolving original game, not a chess rules implementation with a decorative hidden mode. Hidden identities, directional emergence, randomized armies, and pawn stacks are central. “Veiled Crowns” is only a working title.
 
 ## Core game loop
 
-Choose between bringing an unknown piece out of the formation, maneuvering an already revealed piece, and combining or separating pawns. Resolve any check, then pass the device. Every horizontal reveal opens a space for another tile to emerge. Players learn their own army at the same time as their opponent.
+Choose between bringing an unknown piece out of the formation, maneuvering an already revealed piece, and combining or separating pawns. Resolve any check, then pass the device. Every reveal move opens a space for another tile to emerge. Players learn their own army at the same time as their opponent.
 
 ## Current rules
 
-### Setup and horizontal revealing
+### Setup and revealing
 
 - The board is 8×8. Player 1 occupies **a1–d4**; Player 2 occupies **a5–d8**. Both armies occupy the **first four files**. The right half starts empty. The armies touch along ranks 4 and 5.
 - Each player has one king, one queen, two rooks, two bishops, two knights, and eight pawns. Each army is shuffled independently for each game.
 - Every piece starts hidden to **both players**, including its owner.
-- A hidden tile is exposed when the square immediately **right** of it is on the board and empty. Exactly four tiles per army begin exposed: d1–d4 and d5–d8.
-- **Revealing is a move:** slide the tile **one square right** into that gap and flip it **there**. There is no voluntary in-place flip. The slide and flip are one action. This opening move applies even to bishops, knights, and pawns.
-- The vacated square exposes the tile behind it. A tile that has revealed uses its normal piece movement on subsequent actions.
-- The alternate playtest setting allows a hidden tile to slide one square either left or right into an empty neighbor. It still must move horizontally to reveal.
+- A hidden tile is exposed when it has at least one available opening destination. Exactly four tiles per army begin exposed: d1–d4 and d5–d8; each initially has four destinations on files e–h.
+- **Revealing is a move:** slide **1–4 squares right**, **1 square forward**, or **1 square left**, then flip **where it lands**. Every traversed square and the destination must be empty. Stop before the first blocker: no jumping, capturing, backward movement, diagonal opening, or change of direction mid-slide. Right always means toward file h. Forward means toward rank 8 for Player 1 and rank 1 for Player 2. The slide and flip are one action regardless of distance or hidden type, including kings and knights.
+- The vacated square can open a rightward, leftward, or forward route for another tile. A tile that has revealed uses its normal piece movement on subsequent actions.
+- The new opening is the default (`exposure.mode: flexible`). Classic right-only and left-or-right one-square profiles remain in Playtest rules for comparison. Distances live in `rightRange`, `leftRange`, and `forwardRange`; 0 disables a direction in the flexible profile.
 
 ### Movement and hidden attacks
 
 - Revealed kings, queens, rooks, bishops, and knights use their usual chess geometry. Sliding pieces cannot pass through any occupied tile. Knights can jump.
-- After the horizontal opening action, Player 1 pawns move toward rank 8 and Player 2 pawns toward rank 1: one square forward, capture diagonally forward.
-- No castling, en passant, or initial two-square pawn move by default. An optional home-rank double-step flag exists in the movement module; a voluntary horizontal reveal counts as having moved.
-- A single pawn reaching its far rank automatically promotes to a queen. Promotion type is configurable in code.
+- After the opening action, Player 1 pawns move toward rank 8 and Player 2 pawns toward rank 1: one square forward, capture diagonally forward.
+- No castling, en passant, or initial two-square pawn move by default. An optional home-rank double-step flag exists in the movement module; a voluntary reveal move counts as having moved.
+- A single pawn reaching its far rank automatically promotes to a queen, including when it is first revealed there. The flip happens before promotion, and history records both. Promotion type is configurable in code.
 - Hidden tiles block movement but exert no attacks.
-- An attack on a hidden enemy is a **challenge**, regardless of its identity. It costs one action, reveals the target **in place**, and moves/captures neither tile. This forced reveal is an exception to voluntary horizontal emergence. A challenged tile can use its revealed movement without first sliding right.
+- An attack on a hidden enemy is a **challenge**, regardless of its identity. It costs one action, reveals the target **in place**, and moves/captures neither tile. This forced reveal is an exception to voluntary emergence. A challenged tile can use its revealed movement without taking an opening slide.
 - A later attack may capture that revealed target, unless it is a king. This two-action challenge rule prevents legal-move highlights from acting as a hidden-king detector.
 
 ### King safety and winning
@@ -66,8 +66,8 @@ All three toggles start **off**, may be combined freely, and require stack enabl
 
 ### Turn and interface
 
-- Player 1 starts. A turn normally has one primary action: horizontal slide-and-reveal, move/capture/challenge, stack, or unstack.
-- Playtest settings offer one to three actions per turn, free slide-and-reveal actions, either horizontal reveal direction, stack enablement, and three independent stack experiment toggles. Applying settings starts a new randomized game. The old forward-capture and leap controls have been removed.
+- Player 1 starts. A turn normally has one primary action: slide-and-reveal, move/capture/challenge, stack, or unstack.
+- Playtest settings offer one to three actions per turn, free slide-and-reveal actions, three opening-move profiles, stack enablement, and three independent stack experiment toggles. Applying settings starts a new randomized game. The old forward-capture and leap controls have been removed.
 - Giving check ends an ordinary turn immediately, even with actions remaining. King responses always get one action. An optional End turn button appears after activity in a multi-action or free-reveal turn.
 - The board keeps a fixed orientation so “right” always means toward file h. Turns switch immediately without a popup by default. The **Pass-device screen between turns** checkbox optionally hides the board and history between players; it can change during a game without restarting. There is no owner-only peek.
 - Action history contains only facts already revealed publicly. The UI receives a redacted projection and no hidden type, identity-encoding id, tooltip, or accessibility label.
@@ -82,9 +82,11 @@ For Version 0.2.1, the author confirmed keeping Move & Challenge after encounter
 
 For Version 0.3, the author requested any-adjacent stacking, stack-and-step, and stack scouting as three independent playtest toggles. All are implemented and off by default. The atomic resolution, optional choices, and scouting after a bonus step are temporary interpretations documented above.
 
+For Version 0.4, the author expanded the opening to up to four squares right, or one square forward or left when available. The temporary interpretation is a straight clear slide with no jumping or capturing, and forward follows each player's pawn direction. The new profile is the default. Move & Challenge and all three stack toggles retain their existing behavior.
+
 The following details are provisional implementations, not claims that the design is settled:
 
-1. One-square rightward emergence, with exactly one action paying for the slide and flip.
+1. Reveal 1–4 squares right, or 1 forward/left along a clear path, with one action paying for the complete slide and flip. Reveal-promotion uses the existing automatic promotion rule.
 2. Pawns switch to ordinary, opposite vertical directions after emerging.
 3. Every hidden attack challenges and reveals in place; no hidden non-king can be captured immediately.
 4. One immediate king response; one preparation action if no safe escape exists; no guaranteed rescue square.
@@ -98,10 +100,12 @@ The following details are provisional implementations, not claims that the desig
 
 | Question | Current experiment | Where to change it |
 | --- | --- | --- |
-| Should revealing move farther horizontally? | One empty square right | `rules/exposure.js`, `engine.js` |
-| Should a hidden tile be able to emerge left once gaps exist? | Right only; alternate in the UI | `rules/exposure.js` |
+| How far should revealing move right? | 1–4 empty squares; no jumping; configurable `rightRange` | `rules/exposure.js`, `rules/config.js` |
+| Should hidden tiles emerge forward or left once gaps exist? | One empty square in either direction; forward follows the owner's pawn direction | `rules/exposure.js` |
+| May a long opening change direction or pass through occupied tiles? | No; one straight, clear slide | `rules/exposure.js` |
+| What if the revealed tile is a pawn on its far rank? | Reveal, then automatically promote using the usual promotion setting | `engine.js` |
 | Does emergence cost the whole turn? | One action; free reveals / multiple actions available | `rules/turn.js`, `rules/config.js` |
-| Should pawns keep moving horizontally after emergence? | Opposite vertical directions | `board.js`, `rules/movement.js`, `rules/pawn-stack.js` |
+| Should pawns retain opening directions after emergence? | Opposite vertical directions | `board.js`, `rules/movement.js`, `rules/pawn-stack.js` |
 | What happens when attacking an unknown tile? | Challenge, reveal in place, no capture or displacement | `rules/movement.js`, `engine.js` |
 | Must a challenged tile still perform a horizontal opening later? | No; forced revelation unlocks normal movement | `engine.js` |
 | Is an opportunity enough when the newly revealed king has no escape? | One preparation action, then evaluate | `rules/king.js`, response handling in `engine.js` |
@@ -130,8 +134,8 @@ The following details are provisional implementations, not claims that the desig
 ## Potential balance problems
 
 - The two armies touch along the a4–d4 / a5–d5 boundary. A newly revealed long-range piece can challenge across that boundary immediately; there is no empty central buffer.
-- A horizontal bishop reveal changes its square color before normal movement starts. Randomized bishops are not guaranteed to end up on opposite colors.
-- Pawns emerge onto files d/e but then move vertically. Their initial rank determines how quickly they can promote and whether neighboring pawns can block each other.
+- Players can now choose an odd or even rightward distance. A bishop changes square color after an odd distance or one-square forward/left reveal, and keeps its color after an even distance. Randomized bishops are still not guaranteed to end up on opposite colors.
+- Pawns may emerge farther across files e–h or through forward/left gaps, then move vertically. Their initial rank determines how quickly they can promote and whether neighboring pawns can block each other.
 - A king buried deep in a formation can delay vulnerability. Refusing to expose it may be strategically stronger than fighting.
 - Revealing a king can lose despite its preparation action if all exits are controlled. This needs human playtesting, not just engine correctness.
 - Eight-direction stacks can transport pawns backward or sideways and form mobile screens, but concentrating two pawns on one square creates a two-pawn capture risk. They are capturable pieces, not additional kings.
@@ -142,7 +146,7 @@ The following details are provisional implementations, not claims that the desig
 ## Interesting situations discovered during implementation
 
 1. **Legality can leak secrets.** If only hidden kings were noncapturable, destination highlights would identify them. Uniform challenges avoid that. Likewise, testing a challenge using the target's secret attack pattern would expose its identity indirectly. Safety simulation keeps the target hidden until resolution.
-2. **Revealing can expose a line attack.** A horizontal opening vacates a real square, so it cannot be treated as a cosmetic flip. A hidden tile that shields an already revealed king may be unable to emerge.
+2. **Revealing can expose a line attack.** An opening slide vacates a real square, so it cannot be treated as a cosmetic flip. A hidden tile that shields an already revealed king may be unable to emerge.
 3. **Royal collision.** A king can challenge a neighboring hidden king, leaving both kings attacked. The response queue gives the challenger the first chance to separate them, then reevaluates the other king.
 4. **A challenge can ambush its attacker.** Flipping an enemy knight may suddenly check the attacker's own king. The challenge stays available before the flip, then the actor receives a response.
 5. **Movement and threat must agree.** Backward and sideways stack attacks now count when testing check and king escape squares. A stack's own ability to enter an attacked square must not inherit the king's royal restriction.
@@ -151,9 +155,12 @@ The following details are provisional implementations, not claims that the desig
 8. **Scouting can ambush during a move that resolves another check.** The moving stack may block a known rook attack, then reveal a different threat. Compare king safety before and after the flip on the completed board, so the actor still gets its ambush response.
 9. **A bonus step can make a merge legal.** Two pawns can combine off a pinned file and step back onto that file within one action. The UI must show that complete action even if simply stacking in place would be illegal; it must not offer the unsafe finish-in-place option.
 
+10. **The same gap can serve either army.** When Player 1 moves d4 → h4, Player 1 can later reveal d3 → d4, and Player 2 can reveal d5 → d4 if it is still empty. A long reveal therefore opens a contested square as well as deploying farther right.
+11. **Revealing can promote.** A hidden pawn can emerge forward onto its final rank. Legality must still be independent of hidden type: simulations keep the tile hidden, and promotion occurs only after the actual flip.
+
 ## Verification and next playtest
 
-The automated suite covers setup, the four starting exits, sliding/revealing for every piece type, gradual exposure, standard movement, challenges, hidden-identity invariants, king responses and ordinary mate, all eight stack moves/captures for both players, rejection of the old leap, non-royal stack safety, edge behavior, promotion, configurable turns, draws, immutability, all eight experiment toggle combinations, compound-action costs, optional bonuses, and simulated legal play.
+The automated suite covers setup, the four exposed starting tiles and their sixteen destinations per player, 1–4 rightward reveals, one-square forward/left reveals, all blocker types, edges, reveal-promotion, classic opening profiles, sliding/revealing for every piece type, gradual exposure, standard movement, challenges, hidden-identity invariants, king responses and ordinary mate, all eight stack moves/captures for both players, rejection of the old leap, non-royal stack safety, edge behavior, promotion, configurable turns, draws, immutability, all eight experiment toggle combinations, compound-action costs, optional bonuses, and simulated legal play.
 
 For the first human game, use the defaults. Record the first point where either player wants a rule to work differently, how many actions it takes to reveal each king, and whether either player has useful reasons to stack and unstack. Change one rule per subsequent game.
 

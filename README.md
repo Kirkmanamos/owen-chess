@@ -1,4 +1,4 @@
-# Veiled Crowns — Version 0.3.0
+# Veiled Crowns — Version 0.4.0
 
 A playable local two-player prototype of a hidden-army strategy game. The title is a working name. The rules are deliberately experimental.
 
@@ -25,8 +25,8 @@ npm run build  # Copy browser assets into dist/ for static hosting
 ## Play
 
 1. Player 1 occupies **a1–d4**, and Player 2 occupies **a5–d8**. Both armies are shuffled and face down. Files e–h begin empty.
-2. Select one of your outlined hidden tiles. Click the highlighted square to its right, or **Slide right & reveal**. The tile slides one square horizontally and flips **on its new square**. That is one combined action, independent of the piece underneath.
-3. Turns switch immediately, so the next player can act without dismissing a popup. On later turns, reveal another tile or use a revealed piece's chess movement. Clearing a square exposes the next hidden tile to its left.
+2. Select an outlined hidden tile, then choose a highlighted destination: **1–4 squares right**, **1 square forward**, or **1 square left**. The entire path and destination must be empty; there is no jumping or capture. Flip **where it lands**. The whole slide and reveal costs one action, regardless of distance or the piece underneath. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. A pawn revealed on its far rank promotes to a queen.
+3. Turns switch immediately, so the next player can act without dismissing a popup. On later turns, reveal another tile or use a revealed piece's chess movement. Clearing a square can open new reveal routes for nearby hidden tiles.
 4. Attack a hidden enemy to challenge it: the target flips in place, and the attacker stays put. Kings are never captured. Newly exposed kings in check receive a response action.
 5. Two side-by-side revealed pawns can **Stack**. Both pawns travel together **one square in any of the eight directions**, including sideways and backward. Captures use the same pattern; there is no jumping or double capture. Select **Unstack** to separate into an empty orthogonal neighbor. Stacks remain pawns on the far rank until split, then single pawns there promote.
 6. Checkmate wins. **How to play** explains the current rules; **Playtest rules** changes selected rules when starting a fresh game.
@@ -53,7 +53,7 @@ Games live in memory. Refreshing or restarting reshuffles the armies. There is n
 | `src/board.js` | Coordinates, geometry, player direction |
 | `src/rules/config.js` | Default values and configuration validation |
 | `src/rules/setup.js` | Army composition, independent shuffles, starting squares |
-| `src/rules/exposure.js` | Horizontal slide-and-reveal destinations; isolated exposure definition |
+| `src/rules/exposure.js` | Clear reveal paths, direction and distance profiles, isolated exposure definition |
 | `src/rules/movement.js` | Per-piece movement registry and attack geometry |
 | `src/rules/pawn-stack.js` | Combine, split, eight-direction movement, optional step/scout action variants |
 | `src/rules/king.js` | Check and newly exposed king detection |
@@ -61,6 +61,7 @@ Games live in memory. Refreshing or restarting reshuffles the armies. There is n
 | `src/rules/outcome.js` | Checkmate, stalemate, repetition, and quiet-action draws |
 | `src/main.js` | DOM rendering and input; no movement-rule implementations |
 | `tests/engine.test.js` | Rule scenarios, privacy invariants, and material conservation |
+| `tests/exposure.test.js` | Reveal distances, blockers, player directions, promotion, privacy and king responses |
 | `tests/stack-experiments.test.js` | All eight experiment combinations, compound actions, scouting privacy and king responses |
 
 The engine exports `createGame(overrides, random)`, `getLegalActions(state)`, `applyAction(state, action)`, and `publicView(state)`. All actions are validated by the engine. `applyAction` returns a new state and never mutates the supplied one. An injectable random function supports deterministic tests.
@@ -70,12 +71,12 @@ Examples of code-level experiments:
 ```js
 createGame({
   turn: { actionsPerTurn: 2, revealCostsAction: false },
-  exposure: { mode: 'either-horizontal' },
+  exposure: { mode: 'flexible', rightRange: 4, leftRange: 1, forwardRange: 1 },
   stack: { enabled: true, anyAdjacent: true, stackAndStep: true, scouting: true }
 });
 ```
 
-The UI exposes those options. More substantial rule changes belong in the small rule modules, not in the rendering code. For example, change `revealDestinations` to try another exposure definition, or `stackMoves` and `stackAttacks` together to try another stack movement pattern. The old `forwardCapture` and `leap` configuration flags have been removed.
+The UI exposes the opening-move profiles, turn options, and stack toggles. The new opening is the default; the two classic one-square opening profiles remain selectable in Playtest rules. Custom reveal ranges are configurable in code (0 disables a direction). More substantial rule changes belong in the small rule modules, not in the rendering code. For example, change `revealDestinations` to try another exposure definition, or `stackMoves` and `stackAttacks` together to try another stack movement pattern. The old `forwardCapture` and `leap` configuration flags have been removed.
 
 See [DESIGN_NOTES.md](DESIGN_NOTES.md) for exact assumptions, unresolved questions, and playtest priorities.
 

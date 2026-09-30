@@ -1,12 +1,25 @@
-import { offset } from '../board.js';
+import { offset, forward } from '../board.js';
 
-// A reveal IS a horizontal slide into a gap, not an in-place flip. The default
-// rightward exit exposes exactly the four d-file tiles of each starting army.
+// The opening slide reveals only at its destination, regardless of identity.
+// Right is always toward file h; forward follows the owner's pawn direction.
+// Legacy modes remain available so playtests can compare opening rules.
 export function revealDestinations(state, square) {
   const piece = state.board[square];
   if (!piece || piece.revealed) return [];
-  const directions = state.rules.exposure.mode === 'either-horizontal' ? [1, -1] : [1];
-  return directions.map(dc => offset(square, 0, dc)).filter(to => to !== null && state.board[to] === null);
+  const rules = state.rules.exposure;
+  const directions = rules.mode === 'flexible'
+    ? [[0, 1, rules.rightRange], [0, -1, rules.leftRange], [forward(piece.owner), 0, rules.forwardRange]]
+    : [[0, 1, 1], [0, -1, rules.mode === 'either-horizontal' ? 1 : 0]];
+  return directions.flatMap(([dr, dc, range]) => {
+    const destinations = [];
+    for (let distance = 1; distance <= range; distance++) {
+      const to = offset(square, dr * distance, dc * distance);
+      // A reveal cannot capture or jump over any tile, including hidden ones.
+      if (to === null || state.board[to] !== null) break;
+      destinations.push(to);
+    }
+    return destinations;
+  });
 }
 
 export function isExposed(state, square) {

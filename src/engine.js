@@ -47,6 +47,9 @@ function changeBoard(state, action, simulation = false) {
       // rule after the real flip; testing them here would leak their identity.
       next.board[action.to] = { ...piece, moved: true, revealed: !simulation };
       next.board[action.from] = null;
+      // A pawn may now emerge forward onto its promotion rank. Only the real
+      // flip promotes it; the simulated tile stays hidden for fair highlights.
+      promote(next, action.to);
       break;
     case 'challenge':
       if (!simulation) next.board[action.to].revealed = true;
@@ -97,7 +100,11 @@ function describeAction(before, after, action) {
   const from = action.from === undefined ? '' : squareName(action.from);
   const to = action.to === undefined ? '' : squareName(action.to);
   const scoutText = action.scout === undefined ? '' : ` Scouted ${squareName(action.scout)}: ${after.board[action.scout].type} revealed.`;
-  if (action.kind === 'reveal') return `Slid ${from} → ${to}, revealing ${after.board[action.to].type}.`;
+  if (action.kind === 'reveal') {
+    const revealedType = before.board[action.from].type;
+    const promotion = revealedType !== after.board[action.to].type ? ` Promoted to ${after.board[action.to].type}.` : '';
+    return `Slid ${from} → ${to}, revealing ${revealedType}.${promotion}`;
+  }
   if (action.kind === 'challenge') return `Challenged ${to}: ${after.board[action.to].type} revealed. Attacker stays on ${from}.`;
   if (action.kind === 'stack') return `Stacked pawns from ${from} onto ${to}${action.step === undefined ? '' : `, then stepped to ${squareName(action.step)}`}.${scoutText}`;
   if (action.kind === 'unstack') return `Unstacked a pawn from ${from} to ${to}.`;
