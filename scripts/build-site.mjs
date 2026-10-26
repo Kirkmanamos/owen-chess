@@ -9,5 +9,9 @@ await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(new URL('index.html', project), new URL('index.html', output));
 await cp(new URL('src/', project), new URL('src/', output), { recursive: true });
+// Crown & Veil, the newer prototype, is published at /crown/ beside it.
+await mkdir(new URL('crown/', output), { recursive: true });
+await cp(new URL('crown/index.html', project), new URL('crown/index.html', output));
+await cp(new URL('crown/src/', project), new URL('crown/src/', output), { recursive: true });
 await writeFile(new URL('.nojekyll', output), '');
 console.log('Static site ready in dist/');

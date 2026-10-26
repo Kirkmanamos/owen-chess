@@ -9,7 +9,7 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 http.createServer(async (req, res) => {
   try {
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-    const path = resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
+    const path = resolve(root, `.${pathname.endsWith('/') ? `${pathname}index.html` : pathname}`);
     if (!path.startsWith(root.endsWith(sep) ? root : root + sep)) {
       res.writeHead(403).end('Forbidden');
       return;

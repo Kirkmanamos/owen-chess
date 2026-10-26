@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f1e9">
+  <title>Crown &amp; Veil · Find the hidden Crown</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232c4941'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-size='44' fill='%23f7f2df'%3E♛%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">♛</span><span>Crown &amp; Veil<small>PROTOTYPE 0.1 · TWO PLAYERS, ONE DEVICE</small></span></a>
+      <div class="header-actions"><button id="rules-button" class="button subtle" type="button">How to play</button><button id="new-game" class="button" type="button">New game</button></div>
+    </header>
+    <main class="play">
+      <section class="board-area" aria-label="Battlefield">
+        <div class="turn-bar"><div><span id="turn-dot" class="dot p1"></span><strong id="turn-title"></strong></div><span id="turn-meta" class="meta"></span></div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+        <div id="board" class="board" role="grid" aria-label="Battlefield, 7 columns by 11 rows"></div>
+        <div class="legend"><span><i class="swatch plains"></i>Plains</span><span><i class="swatch forest"></i>Forest</span><span><i class="swatch hill"></i>Hill</span><span><i class="swatch river"></i>River</span><span><i class="swatch throne"></i>Throne</span></div>
+      </section>
+      <aside class="side">
+        <section class="panel"><p class="eyebrow">YOUR MOVE</p><h2 id="panel-title"></h2><p id="panel-hint" class="hint"></p><div id="panel-cards" class="cards"></div><div id="panel-buttons" class="buttons"></div></section>
+        <section class="panel"><div class="panel-heading"><h2>The land</h2><span id="land-meta" class="meta"></span></div><p id="land-text" class="hint"></p></section>
+        <section class="panel"><div class="panel-heading"><h2>Chronicle</h2></div><ol id="log" class="log"></ol></section>
+      </aside>
+    </main>
+    <footer class="footer"><span>Find the Crown. Build the field.</span><a href="../">Back to Veiled Crowns ↗</a></footer>
+  </div>
+
+  <dialog id="handoff" class="dialog center"><p class="eyebrow">PASS THE DEVICE</p><h2 id="handoff-title"></h2><p class="hint">Your own hidden units are visible to you, so keep the screen away from your opponent.</p><button id="ready-button" class="button primary wide" type="button"></button></dialog>
+
+  <dialog id="rules-dialog" class="dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">HOW TO PLAY</p><button class="icon-button" type="button" data-close="rules-dialog" aria-label="Close">×</button></div><h2 id="rules-title">Find the Crown.<br>Build the field.</h2><div id="rules-content"></div><button class="button primary wide" type="button" data-close="rules-dialog">Back to the battle</button></dialog>
+
+  <dialog id="restart-dialog" class="dialog compact"><p class="eyebrow">A FRESH START</p><h2>Start a new game?</h2><p class="hint">Both players place their armies again, and the land stack is reshuffled.</p><form id="restart-form">
+    <label class="field">Play against<select name="opponent"><option value="human">Another person · same device</option><option value="computer">The computer</option></select></label>
+    <label id="side-field" class="field" hidden>You play<select name="side"><option value="1">Player 1 · moves first</option><option value="2">Player 2 · lays 2 tiles on turn one</option></select></label>
+    <div class="dialog-actions"><button class="button" type="button" data-close="restart-dialog">Keep playing</button><button id="confirm-restart" class="button primary" type="submit">New game</button></div>
+  </form></dialog>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -9,7 +9,7 @@
     "dev": "node server.mjs",
     "build": "node scripts/build-site.mjs",
     "test": "node --test",
-    "check": "node --check src/main.js && node --check src/engine.js && node --test"
+    "check": "node --check src/main.js && node --check src/engine.js && node --check crown/src/main.js && node --check crown/src/engine.js && node --test"
   },
   "engines": { "node": ">=20" }
 }

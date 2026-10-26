@@ -33,7 +33,7 @@
           <button id="settings-button" class="settings-button"><span aria-hidden="true">⚙</span> Playtest rules <span aria-hidden="true">↗</span></button>
         </aside>
       </div>
-      <footer class="page-footer"><span>Reveal. Maneuver. Surprise.</span><span>An evolving game · Rules are made to be playtested.</span></footer>
+      <footer class="page-footer"><span>Reveal. Maneuver. Surprise.</span><span>An evolving game · Rules are made to be playtested. · New prototype: <a href="./crown/">Crown &amp; Veil ↗</a></span></footer>
     </main>
   </div>
 
@@ -42,6 +42,14 @@
   <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.5.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
 
   <dialog id="settings-dialog" class="info-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><p class="eyebrow">THE PLAYTEST LAB</p><button class="icon-button" data-close="settings-dialog" aria-label="Close playtest rules">×</button></div><h2 id="settings-title">Try a different rhythm.</h2><p class="muted">These rules apply to a new randomized game. Starting it replaces the current game.</p><form id="settings-form">
+    <fieldset class="opponent-fields">
+      <legend>Opponent</legend>
+      <label class="field">Play against<select name="opponent"><option value="human">Another person · same device</option><option value="computer">The computer</option></select></label>
+      <div class="computer-options">
+        <label class="field">You play<select name="side"><option value="1">Player 1 · moves first</option><option value="2">Player 2</option><option value="random">Random side</option></select></label>
+        <label class="field">Computer strength<select name="level"><option value="easy">Easy · mostly random</option><option value="normal">Normal · weighs risk</option></select><small>The computer sees only what you see. It judges hidden tiles by the pieces still unaccounted for.</small></label>
+      </div>
+    </fieldset>
     <label class="field">Opening reveal move<select name="exposure"><option value="flexible">1–4 right, or 1 forward or left</option><option value="right-empty">Classic: one square right</option><option value="either-horizontal">Classic: one square left or right</option></select><small>Slide along a clear path into an empty square, then flip. Forward is ↑ for Player 1 and ↓ for Player 2. Distance does not add actions.</small></label>
     <label class="field">Actions per turn<select name="actions"><option value="1">1 action · original prototype</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
     <label class="check-field"><input type="checkbox" name="freeReveal"> Slide-and-reveal is free (unlimited)</label>
@@ -59,7 +67,17 @@
     <p class="form-note">A checking action ends your turn. A king response always gets one action.</p><button class="button primary wide" type="submit">Start with these rules ↗</button>
   </form></dialog>
 
-  <dialog id="restart-dialog" class="info-dialog compact-dialog" aria-labelledby="restart-title"><p class="eyebrow">A FRESH START</p><h2 id="restart-title">Shuffle the armies?</h2><p class="muted">This replaces the current game with a new randomized position using the same playtest rules.</p><div class="dialog-actions"><button class="button" data-close="restart-dialog">Keep playing</button><button id="confirm-restart" class="button primary">New game</button></div></dialog>
+  <dialog id="restart-dialog" class="info-dialog compact-dialog" aria-labelledby="restart-title"><p class="eyebrow">A FRESH START</p><h2 id="restart-title">Shuffle the armies?</h2><p class="muted">This replaces the current game with a new randomized position using the same playtest rules.</p><form id="restart-form">
+    <fieldset class="opponent-fields">
+      <legend>Opponent</legend>
+      <label class="field">Play against<select name="opponent"><option value="human">Another person · same device</option><option value="computer">The computer</option></select></label>
+      <div class="computer-options">
+        <label class="field">You play<select name="side"><option value="1">Player 1 · moves first</option><option value="2">Player 2</option><option value="random">Random side</option></select></label>
+        <label class="field">Computer strength<select name="level"><option value="easy">Easy · mostly random</option><option value="normal">Normal · weighs risk</option></select><small>The computer sees only what you see. It judges hidden tiles by the pieces still unaccounted for.</small></label>
+      </div>
+    </fieldset>
+    <div class="dialog-actions"><button class="button" type="button" data-close="restart-dialog">Keep playing</button><button id="confirm-restart" class="button primary" type="submit">New game</button></div>
+  </form></dialog>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

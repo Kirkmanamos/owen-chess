@@ -4,6 +4,8 @@ A playable local two-player prototype of a hidden-army strategy game. The title 
 
 **Play online:** [Veiled Crowns](https://kirkmanamos.github.io/owen-chess/).
 
+**New prototype:** [Crown & Veil](https://kirkmanamos.github.io/owen-chess/crown/) is a ground-up redesign: secret army placement, a battlefield you build tile by tile, and a race to find the enemy Crown. It lives in [`crown/`](crown/README.md) and is unrelated to the rules below.
+
 The hosted game is still two players sharing one device. Opening the link on separate devices starts separate games; there is no network multiplayer or saved-game synchronization.
 
 ## Run
@@ -93,6 +95,6 @@ See [DESIGN_NOTES.md](DESIGN_NOTES.md) for exact assumptions, unresolved questio
 
 The GitHub repository is [Kirkmanamos/owen-chess](https://github.com/Kirkmanamos/owen-chess). GitHub Pages publishes the `dist/` artifact through `.github/workflows/pages.yml`. Every push to `main` runs the checks, builds the site, and deploys it; pull requests run checks and build without deploying.
 
-To publish an update, commit the intended files and push `main`, then check the **Test and publish game** workflow in GitHub Actions. Browser asset paths are relative so the game works both at localhost and under `/owen-chess/`. Only `index.html`, `src/`, and `.nojekyll` are included in the hosted site. Local screenshots and playtest records in `artifacts/` are ignored by Git.
+To publish an update, commit the intended files and push `main`, then check the **Test and publish game** workflow in GitHub Actions. Browser asset paths are relative so the game works both at localhost and under `/owen-chess/`. Only `index.html`, `src/`, `crown/index.html`, `crown/src/`, and `.nojekyll` are included in the hosted site; Crown & Veil is served at `/crown/`. Local screenshots and playtest records in `artifacts/` are ignored by Git.
 
 The hosted link works without running the local server. For local development, use `npm start` and the localhost URL rather than opening `index.html` directly.

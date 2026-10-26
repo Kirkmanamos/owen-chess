@@ -1,6 +1,7 @@
 import { createGame, getLegalActions, applyAction, publicView } from './engine.js';
 import { squareName, offset, rowOf, colOf } from './board.js';
 import { hasBonusReveal } from './rules/turn.js';
+import { chooseAction as chooseComputerAction, AI_LEVELS } from './ai.js';
 
 const $ = selector => document.querySelector(selector);
 const SYMBOLS = { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' };
@@ -19,6 +20,54 @@ let mode = 'move';
 let lastAction = null;
 let focusSquare = 32;
 let pending = null;
+// Which player the computer controls (null for two humans on one device).
+// The dialogs choose it; ?computer=2&level=easy also works as a shortcut.
+// `side` remembers the human's choice, including "random", for the next game.
+const params = new URLSearchParams(location.search);
+let opponent = {
+  computer: ['1', '2'].includes(params.get('computer')) ? Number(params.get('computer')) : null,
+  level: AI_LEVELS.includes(params.get('level')) ? params.get('level') : 'normal',
+  side: params.get('computer') === '1' ? '2' : '1'
+};
+let computerTimer = null;
+const COMPUTER_DELAY = 550;
+
+const isComputerTurn = () => !game.result && opponent.computer === game.currentPlayer;
+const playerName = player => opponent.computer === null ? `Player ${player}` : opponent.computer === player ? 'Computer' : 'You';
+
+// The computer acts after a short pause so its move is visible, one action at a time.
+function scheduleComputer() {
+  if (computerTimer !== null || !isComputerTurn()) return;
+  computerTimer = setTimeout(() => {
+    computerTimer = null;
+    if (!isComputerTurn()) return;
+    const action = chooseComputerAction(game, { level: opponent.level });
+    if (action) perform(action);
+  }, COMPUTER_DELAY);
+}
+
+function cancelComputer() {
+  clearTimeout(computerTimer);
+  computerTimer = null;
+}
+
+function fillOpponentFields(form) {
+  form.elements.opponent.value = opponent.computer === null ? 'human' : 'computer';
+  form.elements.side.value = opponent.side;
+  form.elements.level.value = opponent.level;
+  form.querySelector('.computer-options').hidden = opponent.computer === null;
+}
+
+function openRestart() {
+  fillOpponentFields($('#restart-form'));
+  $('#restart-dialog').showModal();
+}
+
+function readOpponentFields(form) {
+  const side = form.elements.side.value;
+  const human = side === 'random' ? (Math.random() < 0.5 ? 1 : 2) : Number(side);
+  opponent = { computer: form.elements.opponent.value === 'computer' ? 3 - human : null, level: form.elements.level.value, side };
+}
 
 function make(tag, className, text) {
   const element = document.createElement(tag);
@@ -101,7 +150,7 @@ function perform(action) {
     selected = null;
     mode = 'move';
     render();
-    if (!game.result && game.currentPlayer !== player && $('#privacy-toggle').checked) showHandoff();
+    if (!game.result && game.currentPlayer !== player && opponent.computer === null && $('#privacy-toggle').checked) showHandoff();
     else $('#board').querySelector(`[data-square="${action.step ?? action.to ?? action.from ?? focusSquare}"]`)?.focus();
   } catch (error) {
     $('#status').textContent = error.message;
@@ -109,7 +158,7 @@ function perform(action) {
 }
 
 function clickSquare(square) {
-  if (game.result || $('#handoff').open) return;
+  if (game.result || $('#handoff').open || isComputerTurn()) return;
   const view = publicView(game);
   const actions = getLegalActions(game);
   const destinations = visibleActions(actions).filter(a => destination(a) === square);
@@ -193,10 +242,15 @@ function renderSelection(view, actions) {
     return;
   }
   const piece = view.board[selected];
+  if (isComputerTurn()) {
+    container.append(make('h2', 'selection-title', 'The computer is thinking.'));
+    hint.textContent = `It sees only what you see: revealed pieces and the hidden tiles' outlines. ${view.response ? 'It is answering a king response.' : view.bonusRevealPending ? 'It may take its bonus reveal.' : ''}`;
+    return;
+  }
   if (view.result) {
-    container.append(make('h2', 'selection-title', view.result.winner ? `Player ${view.result.winner} wins.` : 'A drawn game.'));
+    container.append(make('h2', 'selection-title', view.result.winner ? opponent.computer === null ? `Player ${view.result.winner} wins.` : view.result.winner === opponent.computer ? 'The computer wins.' : 'You win.' : 'A drawn game.'));
     hint.textContent = `${view.result.reason}. Start a new game to shuffle the armies again.`;
-    buttons.append(button('Shuffle & play again ↗', () => $('#restart-dialog').showModal()));
+    buttons.append(button('Shuffle & play again ↗', openRestart));
     return;
   }
   if (!piece) {
@@ -250,9 +304,11 @@ function renderArmies(view) {
 
 function render() {
   const view = publicView(game);
-  const actions = getLegalActions(game);
+  const computerTurn = isComputerTurn();
+  // No highlights or controls while the computer is choosing.
+  const actions = computerTurn ? [] : getLegalActions(game);
   $('#turn-dot').className = `player-dot p${view.currentPlayer}`;
-  $('#turn-title').textContent = view.result ? 'The game is complete' : `Player ${view.currentPlayer} to ${view.response ? 'respond' : 'play'}`;
+  $('#turn-title').textContent = view.result ? 'The game is complete' : opponent.computer !== null && !computerTurn ? `Your turn to ${view.response ? 'respond' : 'play'}` : `${playerName(view.currentPlayer)} to ${view.response ? 'respond' : 'play'}`;
   $('#turn-subtitle').textContent = view.response ? 'One response action before adjudication' : view.bonusRevealPending ? '1 optional bonus reveal · or skip' : `${view.actionsLeft} action${view.actionsLeft === 1 ? '' : 's'} available${hasBonusReveal(view.rules) ? ' · then 1 optional reveal' : view.rules.turn.revealCostsAction ? '' : ' · reveals are free'}`;
   $('#turn-count').textContent = `TURN ${String(view.turnNumber).padStart(2, '0')}`;
   const forwardArrow = view.currentPlayer === 1 ? '↑' : '↓';
@@ -263,6 +319,8 @@ function render() {
   status.className = `status${view.result ? ' finished' : view.check[view.currentPlayer] ? ' check' : ''}`;
   status.textContent = view.result ? `${view.result.winner ? `Player ${view.result.winner} wins` : 'Draw'} · ${view.result.reason}` : view.response ? `${view.response.reason} ${view.preparation ? 'No escape: take one preparation action before adjudication.' : 'You have an immediate action to get out of check.'}` : view.check[view.currentPlayer] ? 'Your king is in check. Your next action must make it safe.' : 'Slide an exposed tile to reveal it, or move a revealed piece.';
   if (!view.result && view.bonusRevealPending) status.textContent = 'Bonus reveal · Slide one more hidden tile to reveal it, or skip to end your turn.';
+  if (computerTurn) status.textContent = 'Computer is thinking…';
+  if (view.result && opponent.computer !== null && view.result.winner) status.textContent = `${view.result.winner === opponent.computer ? 'The computer wins' : 'You win'} · ${view.result.reason}`;
   if (pending) status.textContent = 'Action preview · Choose an optional bonus below, or cancel to return to the position. Your turn has not ended.';
   renderSelection(view, actions); // Establish the selected mode before highlights.
   renderBoard(planView(view), actions);
@@ -281,6 +339,7 @@ function render() {
     li.append(make('span', 'history-number', String(item.number).padStart(2, '0')), description);
     history.append(li);
   }
+  scheduleComputer();
 }
 
 function showHandoff() {
@@ -292,6 +351,7 @@ function showHandoff() {
 }
 
 function startGame(rules = game.rules) {
+  cancelComputer();
   game = createGame(rules); selected = null; lastAction = null; pending = null; mode = 'move'; focusSquare = 32;
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
   document.body.classList.remove('privacy-on');
@@ -325,8 +385,17 @@ document.addEventListener('keydown', event => {
   }
 });
 $('#rules-button').addEventListener('click', showRules);
-$('#new-game').addEventListener('click', () => $('#restart-dialog').showModal());
-$('#confirm-restart').addEventListener('click', () => startGame());
+$('#new-game').addEventListener('click', openRestart);
+$('#restart-form').addEventListener('submit', event => {
+  event.preventDefault();
+  readOpponentFields(event.currentTarget);
+  startGame();
+});
+for (const form of [$('#restart-form'), $('#settings-form')]) {
+  form.elements.opponent.addEventListener('change', event => {
+    form.querySelector('.computer-options').hidden = event.currentTarget.value !== 'computer';
+  });
+}
 for (const close of document.querySelectorAll('[data-close]')) close.addEventListener('click', () => document.getElementById(close.dataset.close).close());
 $('#settings-button').addEventListener('click', () => {
   const form = $('#settings-form');
@@ -338,6 +407,7 @@ $('#settings-button').addEventListener('click', () => {
   form.elements.stacking.checked = game.rules.stack.enabled;
   for (const key of ['anyAdjacent', 'stackAndStep', 'scouting']) form.elements[key].checked = game.rules.stack[key];
   $('#stack-experiments').disabled = !form.elements.stacking.checked;
+  fillOpponentFields(form);
   $('#settings-dialog').showModal();
 });
 $('#settings-form').elements.stacking.addEventListener('change', event => {
@@ -351,6 +421,7 @@ $('#settings-form').addEventListener('submit', event => {
   const data = new FormData(event.currentTarget);
   const stack = { enabled: data.has('stacking') };
   for (const key of ['anyAdjacent', 'stackAndStep', 'scouting']) stack[key] = event.currentTarget.elements[key].checked;
+  readOpponentFields(event.currentTarget);
   startGame({ exposure: { mode: data.get('exposure') }, turn: { actionsPerTurn: Number(data.get('actions')), revealCostsAction: !data.has('freeReveal'), bonusReveal: event.currentTarget.elements.bonusReveal.checked }, stack });
 });
 render();
