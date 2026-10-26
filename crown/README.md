@@ -27,7 +27,7 @@ You can play against another person on the same device, or against the computer.
    - the board animates into hexagons (every other row shifts half a cell sideways)
    - every cell gains 6 neighbours
    - the Wild deck takes over
-5. **Win** by capturing the enemy Crown, or by starting two of your turns in a row with your *revealed* Crown on the Core. A unit on the Core can't be pushed or struck, and its owner aims the next surge. After 30 rounds the Core burns out and the game is drawn.
+5. **Win** by capturing the enemy Crown, or by starting two of your turns in a row with your *revealed* Crown on the Core. A unit on the Core can't be pushed or struck, and its owner aims the surge after next (the one with faint stripes), so the target always gets a turn to react. After 30 rounds the Core burns out and the game is drawn.
 
 | Unit | Strength | Ability |
 | --- | --- | --- |

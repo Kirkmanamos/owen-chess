@@ -5,7 +5,8 @@ import {
 
 // Crown & Veil 0.2 — The Wild Core.
 // Phases: setup → act (with peek / build sub-steps) → [grow during a surge] → … → over.
-// A harnessing player may start their turn in `aim` to re-mark the next surge.
+// A harnessing player may start their turn in `aim` to re-mark the second
+// showing surge, so every mark still stays visible through an opponent's turn.
 
 // A small deterministic generator kept in the state, so applyAction stays pure.
 function nextRandom(state) {
@@ -231,7 +232,9 @@ function beginTurn(state, player) {
   }
   state.actionsLeft = state.turnNumber === 1 ? SETTINGS.firstTurnActions : SETTINGS.actionsPerTurn;
   const harnessing = holder?.owner === player;
-  state.phase = harnessing && state.surge.targets.length ? 'aim' : 'act';
+  // Only the surge after next can be aimed: re-marking the one that strikes at
+  // the end of this turn would leave the target no chance to respond.
+  state.phase = harnessing && state.upcoming?.targets.length ? 'aim' : 'act';
   if (state.phase === 'aim') state.pending = { kind: 'aim', slot: 0 };
 }
 
@@ -253,7 +256,7 @@ function afterAction(state) {
   else state.phase = 'act';
 }
 
-function moveDestinations(state, from) {
+export function moveDestinations(state, from) {
   const unit = state.units[from];
   const steps = unit.revealed && unit.type === 'scout' ? 2 : 1;
   const reached = new Set();
@@ -291,7 +294,7 @@ export function getLegalActions(state) {
     case 'grow': return landChoices(state).map(choice => ({ kind: 'grow', ...choice }));
     case 'build': return landChoices(state).map(choice => ({ kind: 'build', ...choice }));
     case 'peek': return peekTargets(state, state.pending.from).map(at => ({ kind: 'peek', at }));
-    case 'aim': return [...targetCandidates(state, state.surge.card).filter(at => !state.surge.targets.some((marked, i) => i !== state.pending.slot && marked === at)).map(at => ({ kind: 'aim', at })), { kind: 'keep-aim' }];
+    case 'aim': return [...targetCandidates(state, state.upcoming.card).filter(at => !state.upcoming.targets.some((marked, i) => i !== state.pending.slot && marked === at)).map(at => ({ kind: 'aim', at })), { kind: 'keep-aim' }];
   }
   const actions = [];
   const crown = state.units.findIndex(unit => unit?.owner === player && unit.type === 'crown');
@@ -367,11 +370,11 @@ export function applyAction(original, action) {
     case 'aim':
     case 'keep-aim':
       if (action.kind === 'aim') {
-        state.surge.targets[state.pending.slot] = action.at;
+        state.upcoming.targets[state.pending.slot] = action.at;
         state.pending.slot += 1;
-        log(state, `Harnessing the Core, aimed the coming ${SURGES[state.surge.card].name} at ${squareName(action.at)}.`);
+        log(state, `Harnessing the Core, aimed the ${SURGES[state.upcoming.card].name} after next at ${squareName(action.at)}.`);
       }
-      if (action.kind === 'keep-aim' || state.pending.slot >= SURGES[state.surge.card].targets) { state.pending = null; state.phase = 'act'; }
+      if (action.kind === 'keep-aim' || state.pending.slot >= SURGES[state.upcoming.card].targets) { state.pending = null; state.phase = 'act'; }
       return state;
     case 'peek': {
       const unit = state.units[action.at];

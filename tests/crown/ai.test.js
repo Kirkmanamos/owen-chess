@@ -76,3 +76,12 @@ test('computer self-play completes legal games', () => {
     assert.equal(state.phase, 'over');
   }
 });
+
+test('the computer keeps its revealed Crown out of move-and-attack reach', () => {
+  // The enemy Champion on b6 can step next to a Crown left on a7 and strike in one
+  // turn. The only safe square, a8, is farther from the Core.
+  const state = arena({ [sq(6, 0)]: { owner: 1, type: 'crown' }, [sq(5, 1)]: { owner: 2, type: 'champion' }, [sq(0, 6)]: { owner: 2, type: 'crown', revealed: false }, [sq(8, 6)]: { owner: 1, type: 'guard', revealed: false } });
+  state.actionsLeft = 1;
+  const after = applyAction(state, chooseAction(state, { random: seeded(8) }));
+  assert.equal(after.units.findIndex(unit => unit?.owner === 1 && unit.type === 'crown'), sq(7, 0));
+});

@@ -178,17 +178,23 @@ test('Grow lets the next player, then the other, lay a tile of their choice', ()
   assert.equal(next.land[sq(2, 3)], 'hill');
 });
 
-test('a unit on the Core lets its owner re-aim the next surge, and is immune to it', () => {
+test('a unit on the Core lets its owner re-aim the surge after next, and is immune to surges', () => {
   const state = arena({ ...kings, [CORE]: { owner: 1, type: 'guard' }, [sq(3, 3)]: { owner: 2, type: 'scout' } }, { player: 2, shattered: true });
   state.surge = { card: 'sink', targets: [] };
   state.upcoming = { card: 'bolt', targets: [sq(5, 3)] };
-  let next = applyAction(state, { kind: 'end-turn' }); // Player 2 ends; the bolt is next
+  state.deck = ['storm', ...DECKS.wild];
+  let next = applyAction(state, { kind: 'end-turn' }); // Player 2 ends; the bolt is next, then a storm
   assert.equal(next.currentPlayer, 1);
   assert.equal(next.phase, 'aim');
-  assert.ok(!targetCandidates(next, 'bolt').includes(CORE));
+  assert.equal(next.upcoming.card, 'storm');
+  assert.ok(!targetCandidates(next, 'storm').includes(CORE));
   next = applyAction(next, { kind: 'aim', at: sq(3, 3) });
+  assert.equal(next.phase, 'aim'); // the storm has a second mark
+  next = applyAction(next, { kind: 'keep-aim' });
   assert.equal(next.phase, 'act');
-  assert.deepEqual(next.surge.targets, [sq(3, 3)]);
+  // The bolt striking at the end of this turn keeps its mark; only the storm after it moved.
+  assert.deepEqual(next.surge, { card: 'bolt', targets: [sq(5, 3)] });
+  assert.equal(next.upcoming.targets[0], sq(3, 3));
 });
 
 test('a revealed Crown that starts two turns in a row on the Core wins', () => {

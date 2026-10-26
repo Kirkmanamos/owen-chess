@@ -241,7 +241,7 @@ function renderPanel(view, actions) {
       return;
     case 'aim':
       title.textContent = 'You hold the Core.';
-      hint.textContent = `Your unit on the Core lets you aim the coming ${SURGES[view.surge.card].name}. Choose a highlighted square for mark ${view.pending.slot + 1}, or keep the current marks.`;
+      hint.textContent = `Your unit on the Core lets you aim the ${SURGES[view.upcoming.card].name} after next (faint stripes), so your opponent still gets a turn to react. Choose a highlighted square for mark ${view.pending.slot + 1}, or keep the current marks.`;
       buttons.append(button('Keep the current marks', () => act({ kind: 'keep-aim' }), 'button wide'));
       return;
   }
@@ -297,7 +297,7 @@ function render() {
     peek: 'Choose a hidden enemy for your Scout to look at.',
     build: 'Your Builder lays land.',
     grow: 'The Core surges with growth. Lay one land tile.',
-    aim: 'You hold the Core: aim its next surge.',
+    aim: 'You hold the Core: aim the surge after next.',
     over: view.result ? `${view.result.winner ? `Player ${view.result.winner} wins` : 'Draw'} · ${view.result.reason}` : ''
   };
   $('#status').textContent = isComputerTurn() ? 'The computer is taking its turn…' : statuses[game.phase];
@@ -322,7 +322,7 @@ function showRules() {
     ['Your turn', `Take ${SETTINGS.actionsPerTurn} actions (Player 1 takes ${SETTINGS.firstTurnActions} on the very first turn). Reveal a unit, move a unit one step, attack with a revealed unit, or once per game use succession, which takes both actions. One unit may take both actions but attacks only once. You may end your turn early.`],
     ['The Wild Core', 'The Core surges at the end of every round. The next surge card and the squares it will hit are always shown. Calm surges grow land, reveal hidden units, push units away, or strike with bolts of strength 3.'],
     ['The Shattering', `The first time a unit reaches a square next to the Core — or at the end of round ${SETTINGS.shatterRound} — the field breaks into hexagons. Every cell then has 6 neighbours, the Wild deck takes over (storms, pulses, sinking land), and the Core surges after every turn. From then on the next two surges are always shown, so every mark is visible through one turn of each player before it strikes.`],
-    ['Holding the Core', 'A unit that starts its owner’s turn on the Core is never pushed or struck, and its owner aims the next surge. Only a revealed Crown can win there.'],
+    ['Holding the Core', 'A unit that starts its owner’s turn on the Core is never pushed or struck, and its owner aims the surge after next (the one with faint stripes), so the target always gets a turn to react. Only a revealed Crown can win there.'],
     ['Combat', 'The defender is turned face up. Higher strength wins; ties remove both. A winning attacker moves in, except the Archer. Defenders get +1 on a Hill and +1 next to their revealed Guard. A revealed Crown gives +1 to friendly units next to it, attacking and defending. The Assassin always beats the Crown and the Champion when it attacks.'],
     ['Units', Object.values(UNITS).map(unit => `${unit.name} (${unit.strength}): ${unit.text}`).join(' ')],
     ['Land', `${Object.values(LAND).map(land => `${land.name}: ${land.text}`).join(' ')} Squares with no land cannot be entered.`],

@@ -1,4 +1,4 @@
-import { applyAction, getLegalActions, shuffled, defenseStrength, attackStrength } from './engine.js';
+import { applyAction, getLegalActions, shuffled, defenseStrength, attackStrength, moveDestinations } from './engine.js';
 import { HOME, CORE, ARMY, SETTINGS, otherPlayer, neighbors, distance, directions, step, rowOf } from './rules.js';
 
 export const VALUE = { crown: 0, champion: 6, guard: 4, scout: 3, archer: 3, builder: 2, assassin: 3 };
@@ -60,16 +60,26 @@ function wouldWin(state, from, to) {
   return attackStrength(state, from) > defenseStrength(state, to);
 }
 
-function canStrike(state, from, to) {
-  const attacker = state.units[from];
-  if (!attacker?.revealed) return false;
+// Whether the unit on `from`, standing on `at`, could strike `to` — geometry only.
+function strikesFrom(state, from, at, to) {
   const hex = state.shattered;
-  if (attacker.type !== 'archer') return neighbors(from, hex).includes(to);
+  if (state.units[from].type !== 'archer') return neighbors(at, hex).includes(to);
   return directions(hex).some(direction => {
-    const middle = step(from, direction, hex);
-    return middle !== null && !state.units[middle] && step(middle, direction, hex) === to;
+    const middle = step(at, direction, hex);
+    return middle !== null && (!state.units[middle] || middle === from) && step(middle, direction, hex) === to;
   });
 }
+
+const canStrike = (state, from, to) => Boolean(state.units[from]?.revealed) && strikesFrom(state, from, from, to);
+
+// Units of `player` that could defeat the unit on `target` within one full turn
+// of two actions: move then attack, or reveal then attack. In a sampled world
+// hidden enemy units have guessed identities, so their threat is a guess too.
+const reachThreats = (state, player, target) => state.units.flatMap((unit, from) => {
+  if (unit?.owner !== player || canStrike(state, from, target) || !wouldWin(state, from, target)) return [];
+  const reach = unit.revealed ? moveDestinations(state, from).some(at => strikesFrom(state, from, at, target)) : strikesFrom(state, from, from, target);
+  return reach ? [from] : [];
+});
 
 // Revealed units of `player` that could attack `target` and win.
 const strikers = (state, player, target) => state.units.flatMap((unit, from) =>
@@ -109,7 +119,8 @@ export function evaluate(state, me) {
     const square = crowns[owner];
     const attacker = otherPlayer(owner);
     let danger = strikers(state, attacker, square).length ? (toMove === attacker ? 60 : 8) : 0;
-    danger += 0.7 * neighbors(square, hex).filter(n => state.units[n]?.owner === attacker && !state.units[n].revealed).length;
+    // With two actions, a unit one step away (or hidden next door) is a threat too.
+    if (!danger && reachThreats(state, attacker, square).length) danger = toMove === attacker ? 45 : 6;
     const known = state.knowledge[attacker][state.units[square].id];
     if (known && known.type === 'crown' && !isStale(state, attacker, known)) danger += 3;
     return danger;
