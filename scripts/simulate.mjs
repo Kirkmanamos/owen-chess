@@ -11,12 +11,11 @@ import { playGame } from './sim/play.js';
 const ALL_STACK = { anyAdjacent: true, stackAndStep: true, scouting: true };
 export const SETTINGS = [
   { name: 'default', rules: {} },
-  { name: 'bonus-reveal', rules: { turn: { bonusReveal: true } } },
+  { name: 'no-bonus-reveal', rules: { turn: { bonusReveal: false } } },
   { name: 'free-reveals', rules: { turn: { revealCostsAction: false } } },
   { name: 'two-actions', rules: { turn: { actionsPerTurn: 2 } } },
   { name: 'no-stacks', rules: { stack: { enabled: false } } },
   { name: 'all-stack-experiments', rules: { stack: ALL_STACK } },
-  { name: 'bonus+all-stacks', rules: { turn: { bonusReveal: true }, stack: ALL_STACK } },
   { name: 'classic-right-only', rules: { exposure: { mode: 'right-empty' } } },
   { name: 'classic-either-side', rules: { exposure: { mode: 'either-horizontal' } } },
   { name: 'no-king-response', rules: { king: { revealResponse: false } } }
@@ -82,6 +81,8 @@ if (!isMainThread) {
       focusWinRate: group.players ? pct(decided.filter(x => x.job.players[x.r.winner] === x.job.focus).length, n) : undefined,
       medianActions: median(all.map(r => r.actions)),
       medianTurns: median(all.map(r => r.turns)),
+      revealedAfter5Turns: +mean(all.map(r => r.revealedAfter5 ?? 0)).toFixed(1),
+      firstCaptureTurn: median(all.map(r => r.firstCaptureTurn).filter(t => t !== null)),
       capped: pct(all.filter(r => r.reason === 'Action cap').length, n),
       reasons,
       revealShare: pct(kinds.reveal || 0, totalActions),
@@ -109,6 +110,8 @@ if (!isMainThread) {
   const skill = summary.filter(s => s.setting.startsWith('skill'));
   const pick = (rows, keys) => rows.map(r => Object.fromEntries([['setting', r.setting], ...keys.map(k => [k, r[k]])]));
   console.log(`\n${jobs.length} games in ${((Date.now() - started) / 1000).toFixed(0)} s, ${games} per setting\n`);
+  console.log('Opening pace (tiles revealed per player after five turns each; turn number counts both players)');
+  console.table(pick(balance, ['revealedAfter5Turns', 'firstCaptureTurn', 'medianTurns']));
   console.log('Outcomes');
   console.table(pick(balance, ['decisive', 'p1WinOfDecisive', 'medianActions', 'medianTurns', 'capped', 'comebackWins', 'leadChangesPerGame']));
   console.log('Kings and hidden information');

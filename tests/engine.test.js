@@ -54,7 +54,7 @@ test('exactly four tiles in file d are initially exposed for each player', () =>
 });
 
 test('revealing slides the tile right, flips it, and exposes the next layer', () => {
-  const state = createGame();
+  const state = createGame({ turn: { bonusReveal: false } });
   assert.equal(isExposed(state, sq('c4')), false);
   const originalType = state.board[sq('d4')].type;
   const next = act(state, 'reveal', 'd4', 'e4');

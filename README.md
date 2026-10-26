@@ -48,7 +48,7 @@ Games live in memory. Refreshing or restarting reshuffles the armies. There is n
 
 ### One bonus reveal per turn
 
-The independent **One bonus reveal per turn** toggle in **Playtest rules** is **off by default**. When enabled, finishing your normal action(s) offers one optional free slide-and-reveal of another hidden tile, followed by the opponent's turn. The board highlights eligible tiles and offers **Skip bonus reveal** inline, without a popup. If no legal reveal exists, the turn ends automatically.
+The independent **One bonus reveal per turn** toggle in **Playtest rules** is **on by default**, because the opening felt slow without it. When enabled, finishing your normal action(s) offers one optional free slide-and-reveal of another hidden tile, followed by the opponent's turn. The board highlights eligible tiles and offers **Skip bonus reveal** inline, without a popup. If no legal reveal exists, the turn ends automatically.
 
 The normal action can itself be a reveal, so a one-action turn can uncover two tiles. The bonus cannot move a revealed piece, capture, challenge, stack, or unstack. Its newly revealed piece cannot take another normal action that turn. Check still ends a turn immediately; a king revealed in check still receives its response, and response actions never earn bonuses. Ending a multi-action turn early also declines the bonus.
 

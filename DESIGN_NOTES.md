@@ -74,7 +74,7 @@ All three toggles start **off**, may be combined freely, and require stack enabl
 
 #### Optional bonus reveal (Version 0.5)
 
-- **One bonus reveal per turn** (`turn.bonusReveal`) is an independent toggle, **off by default**. It changes no piece's movement, including the queen's range or capture frequency.
+- **One bonus reveal per turn** (`turn.bonusReveal`) is an independent toggle, **on by default** since the author found the opening too slow without it. It changes no piece's movement, including the queen's range or capture frequency.
 - After the player spends all normal actions, offer one free voluntary slide-and-reveal of an eligible hidden friendly tile. Its path, landing square, known king safety, and promotion use the normal reveal rules. It never captures or challenges an enemy.
 - **Timing assumption:** the bonus comes last. A normal reveal can be followed by a bonus reveal of a different tile, including one just exposed by the first slide. Once the bonus is taken, pass the turn; the bonus tile cannot also take a normal action that turn.
 - **Skip bonus reveal** passes immediately without changing the board. If there are no legal bonus reveals, pass automatically. The option appears inline on the board; no additional modal or handoff appears until the player actually changes.
@@ -118,7 +118,7 @@ The following details are provisional implementations, not claims that the desig
 | May a long opening change direction or pass through occupied tiles? | No; one straight, clear slide | `rules/exposure.js` |
 | What if the revealed tile is a pawn on its far rank? | Reveal, then automatically promote using the usual promotion setting | `engine.js` |
 | Does emergence cost the whole turn? | One action; free reveals / multiple actions available | `rules/turn.js`, `rules/config.js` |
-| Does one bounded bonus help players develop against an early queen? | **One bonus reveal per turn**, off by default; once after all paid actions, inline skip, no bonus after giving check or king responses; unlimited free reveals supersede it | `rules/turn.js`, `engine.js`, `rules/config.js` |
+| Does one bounded bonus help players develop against an early queen? | **One bonus reveal per turn**, on by default; once after all paid actions, inline skip, no bonus after giving check or king responses; unlimited free reveals supersede it | `rules/turn.js`, `engine.js`, `rules/config.js` |
 | Should the bonus come before or after normal movement? | After only, so its tile cannot also move in that turn; newly revealed kings keep their response exception | `engine.js` |
 | Should pawns retain opening directions after emergence? | Opposite vertical directions | `board.js`, `rules/movement.js`, `rules/pawn-stack.js` |
 | What happens when attacking an unknown tile? | Challenge, reveal in place, no capture or displacement | `rules/movement.js`, `engine.js` |

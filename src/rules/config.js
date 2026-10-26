@@ -2,7 +2,7 @@
 export const DEFAULT_RULES = {
   setup: { formation: 'left-corners' },
   exposure: { mode: 'flexible', rightRange: 4, leftRange: 1, forwardRange: 1 },
-  turn: { actionsPerTurn: 1, revealCostsAction: true, bonusReveal: false },
+  turn: { actionsPerTurn: 1, revealCostsAction: true, bonusReveal: true },
   hidden: { attack: 'challenge' },
   king: { revealResponse: true, allowPreparationWhenTrapped: true },
   pawn: { initialDoubleStep: false, promotion: 'queen' },

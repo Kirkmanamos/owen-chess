@@ -55,7 +55,7 @@ test('reveal rays stop at board edges and never wrap across ranks', () => {
 });
 
 test('a long reveal flips only at the destination, costs one action, and opens the formation', () => {
-  const state = createGame();
+  const state = createGame({ turn: { bonusReveal: false } });
   const original = structuredClone(state);
   const type = state.board[sq('d4')].type;
   const next = applyAction(state, reveal('d4', 'h4'));

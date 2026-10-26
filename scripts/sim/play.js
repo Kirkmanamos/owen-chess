@@ -21,7 +21,10 @@ export function playGame({ rules, seed, players }) {
     kinds: {}, captures: 0, checks: 0, scouts: 0, stackSteps: 0, bonusUsed: 0, bonusSkipped: 0,
     decisions: 0, branching: 0, forced: 0, close: 0, closeSamples: 0,
     kingRevealedAt: { 1: null, 2: null }, kingRevealedBy: { 1: null, 2: null },
-    materialTrace: [], hiddenAtEnd: { 1: 0, 2: 0 }
+    materialTrace: [], hiddenAtEnd: { 1: 0, 2: 0 },
+    // Opening pace: tiles revealed per player after five turns each, and the
+    // turn of the first capture.
+    revealedAfter5: null, firstCaptureTurn: null
   };
   while (!state.result && state.actionNumber < MAX_ACTIONS) {
     const actions = getLegalActions(state);
@@ -37,7 +40,11 @@ export function playGame({ rules, seed, players }) {
     m.kinds[action.kind] = (m.kinds[action.kind] || 0) + 1;
     if (action.scout !== undefined) m.scouts += 1;
     if (action.step !== undefined) m.stackSteps += 1;
-    if (state.captured.length > before.captured.length) m.captures += 1;
+    if (state.captured.length > before.captured.length) {
+      m.captures += 1;
+      m.firstCaptureTurn ??= before.turnNumber;
+    }
+    if (m.revealedAfter5 === null && state.turnNumber > 10) m.revealedAfter5 = state.board.filter(p => p?.revealed).length / 2;
     if (isInCheck(state, otherPlayer(actor))) m.checks += 1;
     for (const owner of [1, 2]) {
       if (m.kingRevealedAt[owner] !== null) continue;

@@ -18,8 +18,8 @@ function act(state, kind, from, to, extra = {}) {
   return applyAction(state, { kind, ...(from ? { from: sq(from) } : {}), ...(to ? { to: sq(to) } : {}), ...extra });
 }
 
-test('bonus reveal defaults off and rejects nonboolean configuration', () => {
-  assert.equal(createGame().rules.turn.bonusReveal, false);
+test('bonus reveal defaults on and rejects nonboolean configuration', () => {
+  assert.equal(createGame().rules.turn.bonusReveal, true);
   assert.equal(createGame().bonusRevealPending, false);
   assert.throws(() => createGame({ turn: { bonusReveal: 'true' } }), /boolean/);
   const next = act(position(base(), { bonusReveal: false }), 'move', 'a1', 'b1');
