@@ -1,182 +1,242 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, applyAction, getLegalActions, randomLayout, viewFor, defenseStrength } from '../../crown/src/engine.js';
-import { HOME, THRONE, ARMY, LAND_STACK, SQUARES, SETTINGS, index } from '../../crown/src/rules.js';
+import { createGame, applyAction, getLegalActions, randomLayout, viewFor, targetCandidates } from '../../crown/src/engine.js';
+import { CORE, HOME, ARMY, DECKS, SURGES, SETTINGS, index, neighbors, distance } from '../../crown/src/rules.js';
 
 function seeded(seed) {
   return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
 }
+const sq = (row, col) => index(row, col);
 const LAYOUT = ['crown', 'champion', 'guard', 'guard', 'scout', 'scout', 'archer', 'builder', 'assassin', null];
-const started = (random = seeded(1)) => applyAction(applyAction(createGame({ random }), { kind: 'place', layout: LAYOUT }), { kind: 'place', layout: LAYOUT });
+const started = (seed = 1) => applyAction(applyAction(createGame({ random: seeded(seed) }), { kind: 'place', layout: LAYOUT }), { kind: 'place', layout: LAYOUT });
 
-// An empty battlefield of plains for focused scenarios; Player 1 to act.
-function arena(units, land = {}) {
+// A fully landed field for focused scenarios. Player 1 to act with 2 actions.
+function arena(units, { land = {}, shattered = false, player = 1 } = {}) {
   const state = started();
   state.units.fill(null);
-  state.land.fill('plains');
+  state.land = state.land.map((_, square) => square === CORE ? 'core' : 'plains');
   for (const [square, type] of Object.entries(land)) state.land[square] = type;
   let id = 100;
   for (const [square, unit] of Object.entries(units)) state.units[square] = { id: id++, revealed: true, ...unit };
-  state.phase = 'act';
-  state.currentPlayer = 1;
+  Object.assign(state, { phase: 'act', currentPlayer: player, actionsLeft: 2, turnNumber: 3, round: 2, shattered, deckName: shattered ? 'wild' : 'calm' });
+  state.surge = { card: 'grow', targets: [] };
+  state.upcoming = shattered ? { card: 'sink', targets: [] } : null;
+  if (shattered) state.deck = [...DECKS.wild];
   return state;
 }
-const sq = (row, col) => index(row, col);
-const crowns = { [sq(10, 0)]: { owner: 1, type: 'crown', revealed: false }, [sq(0, 6)]: { owner: 2, type: 'crown', revealed: false } };
+// Play through Grow and aiming steps that interrupt a scripted sequence.
+function settle(state) {
+  while (state.phase === 'grow' || state.phase === 'aim') state = applyAction(state, state.phase === 'aim' ? { kind: 'keep-aim' } : getLegalActions(state)[0]);
+  return state;
+}
+const kings = { [sq(8, 0)]: { owner: 1, type: 'crown', revealed: false }, [sq(0, 6)]: { owner: 2, type: 'crown', revealed: false } };
+// Resolve a chosen surge: Player 2 ends the round (or any turn after the Shattering).
+function surge(state, card, targets = []) {
+  state.surge = { card, targets };
+  state.currentPlayer = 2;
+  return applyAction(state, { kind: 'end-turn' });
+}
 
-test('a new game has homes, the Throne, a full land stack and hands of two', () => {
+test('a new game starts with homes, the Core patch and a face-up Calm surge', () => {
   const state = createGame({ random: seeded(3) });
-  assert.equal(state.land.filter(Boolean).length, 21);
-  assert.equal(state.land[THRONE], 'throne');
-  assert.equal(state.stack.length + state.hands[1].length + state.hands[2].length, LAND_STACK.length);
-  assert.equal(state.hands[1].length, 2);
-  assert.equal(state.phase, 'setup');
+  assert.equal(state.land.filter(Boolean).length, 25);
+  assert.equal(state.land[CORE], 'core');
+  assert.ok(DECKS.calm.includes(state.surge.card));
+  assert.equal(state.surge.targets.length, SURGES[state.surge.card].targets);
+  assert.equal(state.deck.length, 7);
   assert.equal(ARMY.length, 9);
 });
 
-test('players place their own armies, then Player 1 starts by building', () => {
-  const state = started();
-  assert.equal(state.units.filter(Boolean).length, 18);
-  assert.equal(state.units[HOME[1][0]].type, 'crown');
-  assert.equal(state.phase, 'build');
-  assert.equal(state.currentPlayer, 1);
-  assert.ok(getLegalActions(state).every(a => a.kind === 'build'));
-  assert.throws(() => applyAction(createGame(), { kind: 'place', layout: ['crown', ...Array(9).fill(null)] }), /whole army/);
-  assert.equal(randomLayout(seeded(2)).filter(Boolean).length, 9);
-});
-
-test('land must touch existing land; Player 2 lays two tiles on the first turn', () => {
+test('Player 1 gets one action on the first turn, then the Core surges after Player 2', () => {
   let state = started();
-  const spots = new Set(getLegalActions(state).map(a => a.at));
-  assert.ok(spots.has(sq(8, 3)) && !spots.has(sq(7, 3)));
-  const tile = state.hands[1][0];
-  state = applyAction(state, { kind: 'build', tile, at: sq(8, 3) });
-  assert.equal(state.land[sq(8, 3)], tile);
-  assert.equal(state.hands[1].length, 2);
-  assert.equal(state.phase, 'act');
+  assert.equal(state.actionsLeft, 1);
   state = applyAction(state, { kind: 'reveal', at: HOME[1][1] });
   assert.equal(state.currentPlayer, 2);
-  assert.equal(state.buildsLeft, 2);
-  state = applyAction(state, { kind: 'build', tile: state.hands[2][0], at: sq(2, 3) });
-  assert.equal(state.phase, 'build');
-  state = applyAction(state, { kind: 'build', tile: state.hands[2][0], at: sq(3, 3) });
-  assert.equal(state.phase, 'act');
-});
-
-test('hidden units move one square; revealed scouts move two; rivers and gaps block', () => {
-  const state = arena({ ...crowns, [sq(5, 1)]: { owner: 1, type: 'guard', revealed: false }, [sq(5, 5)]: { owner: 1, type: 'scout' } }, { [sq(4, 5)]: 'river', [sq(6, 1)]: null });
-  const moves = from => getLegalActions(state).filter(a => a.kind === 'move' && a.from === from).map(a => a.to).sort((a, b) => a - b);
-  assert.deepEqual(moves(sq(5, 1)), [sq(4, 1), sq(5, 0), sq(5, 2)]);
-  assert.ok(!moves(sq(5, 5)).includes(sq(4, 5)) && !moves(sq(5, 5)).includes(sq(3, 5)));
-  assert.ok(moves(sq(5, 5)).includes(sq(7, 5)) && moves(sq(5, 5)).includes(sq(4, 4)));
-});
-
-test('only revealed units attack, and the higher strength wins and advances', () => {
-  const state = arena({ ...crowns, [sq(5, 2)]: { owner: 1, type: 'champion' }, [sq(5, 3)]: { owner: 2, type: 'guard', revealed: false }, [sq(6, 3)]: { owner: 1, type: 'guard', revealed: false } });
-  assert.ok(!getLegalActions(state).some(a => a.kind === 'attack' && a.from === sq(6, 3)));
-  const next = applyAction(state, { kind: 'attack', from: sq(5, 2), to: sq(5, 3) });
-  assert.equal(next.units[sq(5, 3)].type, 'champion');
-  assert.equal(next.units[sq(5, 2)], null);
-  assert.equal(next.currentPlayer, 2);
-});
-
-test('hills and revealed guards add defense; ties remove both units', () => {
-  const state = arena({ ...crowns, [sq(5, 2)]: { owner: 1, type: 'guard' }, [sq(5, 3)]: { owner: 2, type: 'scout' }, [sq(4, 3)]: { owner: 2, type: 'guard' } }, { [sq(5, 3)]: 'hill' });
-  assert.equal(defenseStrength(state, sq(5, 3)), 4);
-  const lost = applyAction(state, { kind: 'attack', from: sq(5, 2), to: sq(5, 3) });
-  assert.equal(lost.units[sq(5, 2)], null);
-  assert.equal(lost.units[sq(5, 3)].type, 'scout');
-  const even = arena({ ...crowns, [sq(5, 2)]: { owner: 1, type: 'guard' }, [sq(5, 3)]: { owner: 2, type: 'guard', revealed: false } });
-  const tie = applyAction(even, { kind: 'attack', from: sq(5, 2), to: sq(5, 3) });
-  assert.equal(tie.units[sq(5, 2)], null);
-  assert.equal(tie.units[sq(5, 3)], null);
-});
-
-test('the assassin always beats the Champion, and capturing the Crown wins', () => {
-  const state = arena({ ...crowns, [sq(5, 2)]: { owner: 1, type: 'assassin' }, [sq(5, 3)]: { owner: 2, type: 'champion' } }, { [sq(5, 3)]: 'hill' });
-  assert.equal(applyAction(state, { kind: 'attack', from: sq(5, 2), to: sq(5, 3) }).units[sq(5, 3)].type, 'assassin');
-  const regicide = arena({ [sq(10, 0)]: { owner: 1, type: 'crown', revealed: false }, [sq(5, 2)]: { owner: 1, type: 'scout' }, [sq(5, 3)]: { owner: 2, type: 'crown', revealed: false } });
-  const won = applyAction(regicide, { kind: 'attack', from: sq(5, 2), to: sq(5, 3) });
-  assert.deepEqual(won.result, { winner: 1, reason: 'The enemy Crown was captured' });
-  assert.equal(won.phase, 'over');
-  assert.deepEqual(getLegalActions(won), []);
-});
-
-test('the archer shoots two squares over an empty middle square and never moves to attack', () => {
-  const state = arena({ ...crowns, [sq(5, 1)]: { owner: 1, type: 'archer' }, [sq(5, 3)]: { owner: 2, type: 'builder', revealed: false }, [sq(3, 1)]: { owner: 2, type: 'guard' }, [sq(4, 1)]: { owner: 1, type: 'guard', revealed: false }, [sq(6, 1)]: { owner: 2, type: 'scout' } });
-  const targets = getLegalActions(state).filter(a => a.kind === 'attack' && a.from === sq(5, 1)).map(a => a.to);
-  assert.deepEqual(targets, [sq(5, 3)]);
-  const next = applyAction(state, { kind: 'attack', from: sq(5, 1), to: sq(5, 3) });
-  assert.equal(next.units[sq(5, 1)].type, 'archer');
-  assert.equal(next.units[sq(5, 3)], null);
-});
-
-test('revealing a scout lets you peek at a hidden enemy outside forests', () => {
-  const state = arena({ ...crowns, [sq(5, 2)]: { owner: 1, type: 'scout', revealed: false }, [sq(5, 4)]: { owner: 2, type: 'champion', revealed: false }, [sq(4, 2)]: { owner: 2, type: 'assassin', revealed: false } }, { [sq(4, 2)]: 'forest' });
-  const peeking = applyAction(state, { kind: 'reveal', at: sq(5, 2) });
-  assert.equal(peeking.phase, 'peek');
-  assert.deepEqual(getLegalActions(peeking), [{ kind: 'peek', at: sq(5, 4) }]);
-  const done = applyAction(peeking, { kind: 'peek', at: sq(5, 4) });
-  assert.equal(viewFor(done, 1).units[sq(5, 4)].seen, 'champion');
-  assert.equal(viewFor(done, 2).units[sq(5, 2)].type, 'scout');
-  assert.equal(done.currentPlayer, 2);
-});
-
-test('revealing the builder lays two extra tiles before the turn ends', () => {
-  let state = started();
-  state = applyAction(state, { kind: 'build', tile: state.hands[1][0], at: sq(8, 3) });
-  const builder = HOME[1].find(square => state.units[square]?.type === 'builder');
-  state = applyAction(state, { kind: 'reveal', at: builder });
-  assert.equal(state.phase, 'bonus-build');
-  state = applyAction(state, { kind: 'build', tile: state.hands[1][0], at: sq(7, 3) });
-  assert.equal(state.currentPlayer, 1);
-  state = applyAction(state, { kind: 'build', tile: state.hands[1][0], at: sq(6, 3) });
+  assert.equal(state.actionsLeft, 2);
+  const card = state.surge.card;
+  state = applyAction(state, { kind: 'reveal', at: HOME[2][1] });
   assert.equal(state.currentPlayer, 2);
-  assert.equal(state.land.filter(Boolean).length, 24);
+  state = applyAction(state, { kind: 'end-turn' });
+  assert.ok(state.log.some(entry => entry.text === `The Core surged: ${SURGES[card].name}.`));
+  if (card === 'grow') assert.equal(state.phase, 'grow');
+  else { assert.equal(state.currentPlayer, 1); assert.equal(state.round, 2); }
 });
 
-test('succession swaps the Crown in secret and marks old peeks as stale', () => {
-  const state = arena({ [sq(10, 0)]: { owner: 1, type: 'crown', revealed: false }, [sq(10, 1)]: { owner: 1, type: 'guard', revealed: false }, [sq(0, 6)]: { owner: 2, type: 'crown', revealed: false } });
-  state.knowledge[2][state.units[sq(10, 1)].id] = { type: 'guard', turn: 1 };
-  state.turnNumber = 5;
-  const next = applyAction(state, { kind: 'succession', with: sq(10, 1) });
-  assert.equal(next.units[sq(10, 1)].type, 'crown');
-  assert.equal(next.units[sq(10, 0)].type, 'guard');
-  assert.deepEqual(viewFor(next, 2).units[sq(10, 1)], { id: next.units[sq(10, 1)].id, owner: 1, revealed: false, seen: 'guard', stale: true });
-  assert.match(next.log.at(-1).text, /succession/);
-  next.currentPlayer = 1; next.phase = 'act';
-  assert.ok(!getLegalActions(next).some(a => a.kind === 'succession'));
+test('squares have 4 neighbours, and hexes 6 in a brick layout', () => {
+  assert.equal(neighbors(CORE, false).length, 4);
+  assert.deepEqual(neighbors(CORE, true).sort((a, b) => a - b), [sq(3, 2), sq(3, 3), sq(4, 2), sq(4, 4), sq(5, 2), sq(5, 3)]);
+  assert.deepEqual(neighbors(sq(3, 3), true).sort((a, b) => a - b), [sq(2, 3), sq(2, 4), sq(3, 2), sq(3, 4), sq(4, 3), sq(4, 4)]);
+  assert.equal(distance(sq(0, 0), sq(2, 2), false), 4);
+  assert.equal(distance(sq(0, 0), sq(2, 2), true), 3);
 });
 
-test('a revealed Crown that starts its turn on the Throne wins', () => {
-  const state = arena({ [sq(6, 3)]: { owner: 1, type: 'crown' }, [sq(0, 6)]: { owner: 2, type: 'crown', revealed: false } });
-  let next = applyAction(state, { kind: 'move', from: sq(6, 3), to: THRONE });
-  assert.equal(next.result, null);
-  next = applyAction(next, getLegalActions(next).find(a => a.kind === 'reveal' || a.kind === 'move'));
-  assert.deepEqual(next.result, { winner: 1, reason: 'The Crown holds the Throne' });
+test('a unit reaching the Core shatters the field and switches to the Wild deck', () => {
+  const state = arena({ ...kings, [sq(2, 3)]: { owner: 1, type: 'scout' } });
+  const next = applyAction(state, { kind: 'move', from: sq(2, 3), to: sq(3, 3) });
+  assert.equal(next.shattered, true);
+  assert.equal(next.deckName, 'wild');
+  // The surge already showing still comes next; the first Wild card follows it.
+  assert.deepEqual(next.surge, state.surge);
+  assert.ok(DECKS.wild.includes(next.upcoming.card));
+  assert.match(next.log.at(-1).text, /The Shattering/);
+  // After the Shattering the Core surges after every turn, including Player 1's.
+  const ended = applyAction(next, { kind: 'end-turn' });
+  assert.ok(ended.log.some(entry => entry.text.startsWith('The Core surged')));
 });
 
-test('the view hides enemy identities and the enemy hand', () => {
-  const view = viewFor(started(), 2);
-  for (const square of HOME[1]) if (view.units[square]) assert.deepEqual(Object.keys(view.units[square]).sort(), ['id', 'owner', 'revealed']);
-  assert.equal(typeof view.opponentHand, 'number');
-  assert.equal(view.hand.length, 2);
+test('the Shattering happens at the end of round 6 at the latest', () => {
+  const state = arena(kings, { player: 2 });
+  state.round = SETTINGS.shatterRound;
+  const next = surge(state, 'bloom');
+  assert.equal(next.shattered, true);
+  assert.equal(next.currentPlayer, 1);
+  assert.ok(DECKS.calm.includes(next.surge.card));
+  assert.ok(DECKS.wild.includes(next.upcoming.card));
 });
 
-test('random games always finish within the countdown and conserve units', () => {
-  for (let seed = 1; seed <= 25; seed++) {
+test('after the Shattering every surge is shown through a turn of each player', () => {
+  let state = arena(kings, { shattered: true });
+  state.surge = { card: 'bolt', targets: [sq(3, 3)] };
+  state.upcoming = { card: 'storm', targets: [sq(5, 3), sq(4, 2)] };
+  state = settle(applyAction(state, { kind: 'end-turn' })); // Player 1 ends; the bolt strikes
+  assert.equal(state.currentPlayer, 2);
+  assert.deepEqual(state.surge, { card: 'storm', targets: [sq(5, 3), sq(4, 2)] });
+  assert.ok(state.upcoming && DECKS.wild.includes(state.upcoming.card));
+  const shown = state.upcoming;
+  state = settle(applyAction(state, { kind: 'end-turn' })); // Player 2 ends; the storm strikes
+  assert.deepEqual(state.surge, shown);
+  assert.equal(viewFor(state, 1).upcoming.card, state.upcoming.card);
+});
+
+test('one unit may act twice but attack only once per turn', () => {
+  const state = arena({ ...kings, [sq(4, 0)]: { owner: 1, type: 'champion' }, [sq(4, 1)]: { owner: 2, type: 'builder' }, [sq(3, 0)]: { owner: 2, type: 'scout' } });
+  const after = applyAction(state, { kind: 'attack', from: sq(4, 0), to: sq(4, 1) });
+  assert.equal(after.currentPlayer, 1);
+  assert.ok(!getLegalActions(after).some(a => a.kind === 'attack'));
+  assert.ok(getLegalActions(after).some(a => a.kind === 'move' && a.from === sq(4, 1)));
+});
+
+test('a revealed Crown rallies neighbours by +1 when attacking and defending', () => {
+  const state = arena({ [sq(8, 0)]: { owner: 2, type: 'crown', revealed: false }, [sq(4, 0)]: { owner: 1, type: 'crown' }, [sq(4, 1)]: { owner: 1, type: 'scout' }, [sq(4, 2)]: { owner: 2, type: 'guard' } });
+  const tie = applyAction(state, { kind: 'attack', from: sq(4, 1), to: sq(4, 2) });
+  assert.equal(tie.units[sq(4, 1)], null);
+  assert.equal(tie.units[sq(4, 2)], null);
+  assert.match(tie.log.at(-1).text, /\(3 vs 3\)/);
+});
+
+test('after the Shattering the archer shoots along hex lines', () => {
+  const state = arena({ ...kings, [sq(4, 3)]: { owner: 1, type: 'archer' }, [sq(2, 2)]: { owner: 2, type: 'guard', revealed: false } }, { shattered: true });
+  assert.deepEqual(getLegalActions(state).filter(a => a.kind === 'attack').map(a => a.to), [sq(2, 2)]);
+});
+
+test('bolts reveal and destroy weak units, but strong ones survive', () => {
+  const state = arena({ ...kings, [sq(3, 3)]: { owner: 1, type: 'scout', revealed: false }, [sq(5, 3)]: { owner: 2, type: 'champion', revealed: false } });
+  const next = surge(state, 'storm', [sq(3, 3), sq(5, 3)]);
+  assert.equal(next.units[sq(3, 3)], null);
+  assert.equal(next.units[sq(5, 3)].revealed, true);
+  assert.equal(next.fallen.length, 1);
+});
+
+test('a bolt on the Crown ends the game', () => {
+  const state = arena({ [sq(8, 0)]: { owner: 1, type: 'crown', revealed: false }, [sq(3, 3)]: { owner: 2, type: 'crown', revealed: false } });
+  assert.deepEqual(surge(state, 'bolt', [sq(3, 3)]).result, { winner: 1, reason: 'The enemy Crown was captured' });
+});
+
+test('tremors and pulses push units directly away from the Core when there is room', () => {
+  const state = arena({ ...kings, [sq(3, 3)]: { owner: 1, type: 'guard' }, [sq(4, 4)]: { owner: 2, type: 'guard' }, [sq(5, 3)]: { owner: 1, type: 'scout' }, [sq(6, 3)]: { owner: 2, type: 'scout' } });
+  const next = surge(state, 'tremor');
+  assert.equal(next.units[sq(2, 3)].type, 'guard');
+  assert.equal(next.units[sq(4, 5)].type, 'guard');
+  assert.equal(next.units[sq(5, 3)].type, 'scout'); // blocked by the unit behind it
+  const wild = arena({ ...kings, [sq(3, 3)]: { owner: 1, type: 'guard' }, [sq(2, 3)]: { owner: 2, type: 'scout' } }, { shattered: true });
+  const pulsed = surge(wild, 'pulse');
+  assert.equal(distance(pulsed.units.findIndex(u => u?.type === 'guard'), CORE, true), 2);
+  assert.equal(distance(pulsed.units.findIndex(u => u?.type === 'scout'), CORE, true), 3);
+});
+
+test('flares, sinks and blooms change what is known and where land is', () => {
+  const state = arena({ ...kings, [sq(3, 3)]: { owner: 2, type: 'assassin', revealed: false } }, { land: { [sq(2, 1)]: null, [sq(6, 5)]: null } });
+  assert.equal(surge(structuredClone(state), 'flare', [sq(3, 3)]).units[sq(3, 3)].revealed, true);
+  assert.equal(surge(structuredClone(state), 'sink', [sq(5, 5)]).land[sq(5, 5)], null);
+  const bloomed = surge(structuredClone(state), 'bloom');
+  assert.equal(bloomed.land[sq(6, 5)], null); // 3 steps from the Core
+  assert.equal(bloomed.land[sq(2, 1)], null);
+  state.land[sq(2, 3)] = null;
+  assert.equal(surge(structuredClone(state), 'bloom').land[sq(2, 3)], 'plains');
+});
+
+test('Grow lets the next player, then the other, lay a tile of their choice', () => {
+  const state = arena(kings, { land: { [sq(2, 3)]: null, [sq(6, 3)]: null } });
+  let next = surge(state, 'grow');
+  assert.equal(next.phase, 'grow');
+  assert.equal(next.currentPlayer, 1);
+  next = applyAction(next, { kind: 'grow', tile: 'hill', at: sq(2, 3) });
+  assert.equal(next.currentPlayer, 2);
+  next = applyAction(next, { kind: 'grow', tile: 'forest', at: sq(6, 3) });
+  assert.equal(next.phase, 'act');
+  assert.equal(next.currentPlayer, 1);
+  assert.equal(next.land[sq(2, 3)], 'hill');
+});
+
+test('a unit on the Core lets its owner re-aim the next surge, and is immune to it', () => {
+  const state = arena({ ...kings, [CORE]: { owner: 1, type: 'guard' }, [sq(3, 3)]: { owner: 2, type: 'scout' } }, { player: 2, shattered: true });
+  state.surge = { card: 'sink', targets: [] };
+  state.upcoming = { card: 'bolt', targets: [sq(5, 3)] };
+  let next = applyAction(state, { kind: 'end-turn' }); // Player 2 ends; the bolt is next
+  assert.equal(next.currentPlayer, 1);
+  assert.equal(next.phase, 'aim');
+  assert.ok(!targetCandidates(next, 'bolt').includes(CORE));
+  next = applyAction(next, { kind: 'aim', at: sq(3, 3) });
+  assert.equal(next.phase, 'act');
+  assert.deepEqual(next.surge.targets, [sq(3, 3)]);
+});
+
+test('a revealed Crown that starts two turns in a row on the Core wins', () => {
+  let state = arena({ [sq(3, 3)]: { owner: 1, type: 'crown' }, [sq(0, 6)]: { owner: 2, type: 'crown', revealed: false } }, { shattered: true });
+  state = applyAction(state, { kind: 'move', from: sq(3, 3), to: CORE });
+  state = settle(applyAction(state, { kind: 'end-turn' }));
+  state = settle(applyAction(state, { kind: 'end-turn' }));
+  assert.equal(state.result, null);
+  assert.equal(state.crownHold[1], 1);
+  state = settle(applyAction(state, { kind: 'end-turn' }));
+  state = settle(applyAction(state, { kind: 'end-turn' }));
+  assert.deepEqual(state.result, { winner: 1, reason: 'The Crown harnessed the Core' });
+});
+
+test('succession needs both actions', () => {
+  const state = arena({ [sq(8, 0)]: { owner: 1, type: 'crown', revealed: false }, [sq(8, 1)]: { owner: 1, type: 'guard', revealed: false }, [sq(0, 6)]: { owner: 2, type: 'crown', revealed: false } });
+  assert.ok(getLegalActions(state).some(a => a.kind === 'succession'));
+  const next = applyAction(state, { kind: 'succession', with: sq(8, 1) });
+  assert.equal(next.units[sq(8, 1)].type, 'crown');
+  assert.equal(next.currentPlayer, 2);
+  state.actionsLeft = 1;
+  assert.ok(!getLegalActions(state).some(a => a.kind === 'succession'));
+});
+
+test('the view lists enemy types still unaccounted for and hides the rest', () => {
+  const state = arena({ ...kings, [sq(3, 3)]: { owner: 2, type: 'scout', revealed: true }, [sq(2, 2)]: { owner: 2, type: 'archer', revealed: false } });
+  state.fallen.push({ owner: 2, type: 'builder' });
+  const view = viewFor(state, 1);
+  assert.deepEqual(view.unaccounted.sort(), ARMY.filter((t, i) => !(t === 'scout' && i === ARMY.indexOf('scout')) && t !== 'builder').sort());
+  assert.deepEqual(Object.keys(view.units[sq(2, 2)]).sort(), ['id', 'owner', 'revealed']);
+});
+
+test('random games always finish and never create units', () => {
+  const endings = {};
+  for (let seed = 1; seed <= 30; seed++) {
     const random = seeded(seed);
     let state = createGame({ random });
     state = applyAction(state, { kind: 'place', layout: randomLayout(random) });
     state = applyAction(state, { kind: 'place', layout: randomLayout(random) });
-    for (let step = 0; step < 2000 && !state.result; step++) {
+    for (let step = 0; step < 5000 && !state.result; step++) {
       const actions = getLegalActions(state);
-      state = applyAction(state, actions[Math.floor(random() * actions.length)]);
-      assert.ok(state.units.filter(Boolean).length <= 18);
-      assert.ok(state.land.filter(Boolean).length <= 21 + LAND_STACK.length && state.land.length === SQUARES);
+      // Ending the turn early is rarer than a real action, so games move.
+      const real = actions.filter(a => a.kind !== 'end-turn' || actions.length === 1);
+      state = applyAction(state, real.length && random() < 0.95 ? real[Math.floor(random() * real.length)] : actions.at(-1));
+      assert.ok(state.units.filter(Boolean).length + state.fallen.length === 18);
     }
     assert.ok(state.result, `seed ${seed} did not finish`);
-    assert.equal(state.phase, 'over');
+    endings[state.result.reason] = (endings[state.result.reason] ?? 0) + 1;
   }
-  assert.equal(SETTINGS.finalTurns, 20);
+  assert.ok(!endings['The Core burned itself out'] || endings['The Core burned itself out'] < 30);
 });

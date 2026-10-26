@@ -4,7 +4,7 @@ A playable local two-player prototype of a hidden-army strategy game. The title 
 
 **Play online:** [Veiled Crowns](https://kirkmanamos.github.io/owen-chess/).
 
-**New prototype:** [Crown & Veil](https://kirkmanamos.github.io/owen-chess/crown/) is a ground-up redesign: secret army placement, a battlefield you build tile by tile, and a race to find the enemy Crown. It lives in [`crown/`](crown/README.md) and is unrelated to the rules below.
+**New prototype:** [Crown & Veil](https://kirkmanamos.github.io/owen-chess/crown/) is a ground-up redesign: secret army placement, an unstable Core that reshapes the field, a mid-game Shattering into hexagons, and a race to find the enemy Crown. It lives in [`crown/`](crown/README.md) and is unrelated to the rules below.
 
 The hosted game is still two players sharing one device. Opening the link on separate devices starts separate games; there is no network multiplayer or saved-game synchronization.
 

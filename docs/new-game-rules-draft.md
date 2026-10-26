@@ -1,5 +1,7 @@
 # Crown & Veil — rules draft 0.1
 
+> **Superseded** by [rules draft 0.2: The Wild Core](rules-draft-v0.2.md). Kept for the design history; Prototype 0.1 itself was replaced in October 2026.
+
 A two-player bluffing game. Both armies start face down, the battleground is built as you play, and you win by finding the enemy Crown. The name is a working title. Strike out or change anything below.
 
 ## Pieces

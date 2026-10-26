@@ -1,27 +1,33 @@
 import { createGame, applyAction, getLegalActions, randomLayout, viewFor } from './engine.js';
-import { SQUARES, HOME, UNITS, LAND, ARMY, SETTINGS, squareName, otherPlayer } from './rules.js';
+import { SQUARES, COLS, ROWS, CORE, HOME, UNITS, LAND, SURGES, SETTINGS, ARMY, squareName, neighbors, position, otherPlayer } from './rules.js';
 import { chooseAction as chooseComputerAction } from './ai.js';
 
 const $ = selector => document.querySelector(selector);
 const GLYPHS = { crown: '♛', champion: '⚔', guard: '⛨', scout: '◎', archer: '➶', builder: '⚒', assassin: '✠' };
-const LAND_GLYPHS = { forest: '♣', hill: '▲', river: '≈', throne: '♛' };
+const LAND_GLYPHS = { forest: '♣', hill: '▲', core: '✺' };
+// Board space in cell widths. The brick layout is half a cell wider than the squares.
+const BOARD_W = COLS + 0.5;
+const BOARD_H = ROWS;
+const HEX_H = 2 / Math.sqrt(3);
 
 let game;
 let viewer = 1;
 let draft = Array(HOME[1].length).fill(null); // the army being arranged during setup
 let placing = 'crown';
 let selected = null;
-let tile = null;
+let tile = 'plains';
 let succession = false;
 let lastSquares = [];
+let current = { view: null, actions: [] };
+let wasShattered = false;
 let computer = null; // the player the computer controls, or null for two people
 let computerTimer = null;
-const COMPUTER_DELAY = 500;
+const COMPUTER_DELAY = 550;
 
 const isComputerTurn = () => computer !== null && !game.result && game.currentPlayer === computer;
 const playerName = player => computer === null ? `Player ${player}` : player === computer ? 'The computer' : 'You';
 
-// The computer takes one step at a time (each build, then its action) so you can follow it.
+// The computer takes one step at a time (each action, land tile or aim) so you can follow it.
 function scheduleComputer() {
   if (computerTimer !== null || !isComputerTurn()) return;
   computerTimer = setTimeout(() => {
@@ -51,9 +57,8 @@ function act(action) {
   try {
     const before = game.currentPlayer;
     game = applyAction(game, action);
-    lastSquares = [action.from, action.to, action.at].filter(square => square !== undefined && action.kind !== 'succession');
+    if (['move', 'attack', 'reveal', 'grow', 'build', 'peek'].includes(action.kind)) lastSquares = [action.from, action.to, action.at].filter(square => square !== undefined);
     selected = null; succession = false;
-    tile = game.hands[game.currentPlayer][0] ?? null;
     if (!game.result && game.currentPlayer !== before && computer === null) return handOff();
     render();
   } catch (error) {
@@ -63,16 +68,27 @@ function act(action) {
 
 function handOff() {
   document.body.classList.add('veiled');
-  $('#handoff-title').textContent = `Over to Player ${game.currentPlayer}.`;
+  const growing = game.phase === 'grow';
+  $('#handoff-title').textContent = `Over to Player ${game.currentPlayer}${growing ? ' to grow land' : ''}.`;
   $('#ready-button').textContent = `I'm Player ${game.currentPlayer} · Show my army`;
   render();
   $('#handoff').showModal();
 }
 
-// Board squares in screen order: each player sees their own home at the bottom.
-const screenOrder = () => Array.from({ length: SQUARES }, (_, i) => viewer === 1 ? i : SQUARES - 1 - i);
+// The action a click on this square would take, given the current selection.
+function targetAction(square, actions) {
+  switch (game.phase) {
+    case 'grow':
+    case 'build': return actions.find(a => a.at === square && a.tile === tile);
+    case 'peek':
+    case 'aim': return actions.find(a => a.at === square);
+  }
+  if (succession) return actions.find(a => a.kind === 'succession' && a.with === square);
+  return actions.find(a => a.from === selected && a.to === square);
+}
 
-function clickSquare(square, view, actions) {
+function clickSquare(square) {
+  const { view, actions } = current;
   if (game.result || $('#handoff').open || isComputerTurn()) return;
   if (game.phase === 'setup') {
     const slot = HOME[viewer].indexOf(square);
@@ -93,25 +109,51 @@ function clickSquare(square, view, actions) {
   }
 }
 
-// The action a click on this square would take, given the current selection.
-function targetAction(square, actions) {
-  if (game.phase === 'build' || game.phase === 'bonus-build') return actions.find(a => a.at === square && a.tile === tile);
-  if (game.phase === 'peek') return actions.find(a => a.at === square);
-  if (succession) return actions.find(a => a.kind === 'succession' && a.with === square);
-  return actions.find(a => a.from === selected && a.to === square);
+// Cell centre on screen, in board units. Player 2 sees the field turned around
+// so their home is always at the bottom; rotating the whole picture keeps the
+// brick layout valid.
+function placement(square, hex) {
+  const [x, y] = position(square, hex);
+  const width = hex ? COLS + 0.5 : COLS;
+  const height = hex ? (ROWS - 1) * Math.sqrt(3) / 2 + 1 : ROWS;
+  const ox = (BOARD_W - width) / 2, oy = (BOARD_H - height) / 2;
+  const [sx, sy] = viewer === 1 ? [x, y] : [width - 1 - x, height - 1 - y];
+  return [ox + sx, oy + sy];
+}
+
+// Cells are created once and then updated, so the Shattering can animate them
+// from squares into hexagons.
+function ensureCells() {
+  const board = $('#board');
+  if (board.children.length) return;
+  for (let square = 0; square < SQUARES; square++) {
+    const cell = make('button', 'cell');
+    cell.type = 'button';
+    cell.dataset.square = square;
+    cell.addEventListener('click', () => clickSquare(square));
+    board.append(cell);
+  }
 }
 
 function renderBoard(view, actions) {
+  ensureCells();
+  // Hold the old shape while the pass-device screen is up, so the next player
+  // sees the Shattering happen instead of finding it already done.
+  const hex = document.body.classList.contains('veiled') ? wasShattered : view.shattered;
   const board = $('#board');
-  board.replaceChildren();
-  for (const square of screenOrder()) {
+  board.classList.toggle('hex', hex);
+  const selectedNeighbors = selected === null ? [] : neighbors(selected, hex);
+  for (const cell of board.children) {
+    const square = Number(cell.dataset.square);
+    const [x, y] = placement(square, hex);
+    const height = hex ? HEX_H : 1;
+    Object.assign(cell.style, { left: `${x / BOARD_W * 100}%`, top: `${(y + (1 - height) / 2) / BOARD_H * 100}%`, width: `${100 / BOARD_W}%`, height: `${height / BOARD_H * 100}%` });
     const land = view.land[square];
-    const cell = make('button', `cell ${land ?? 'void'}`);
-    cell.type = 'button';
-    let label = `${squareName(square)}, ${land ? (land === 'throne' ? 'the Throne' : LAND[land]?.name ?? 'land') : 'no land yet'}`;
-    if (land && LAND_GLYPHS[land]) cell.append(make('span', 'land-mark', LAND_GLYPHS[land]));
-    const home = game.phase === 'setup' && HOME[viewer].includes(square);
-    if (home) cell.classList.add('home');
+    cell.className = `cell ${land ?? 'void'}`;
+    cell.replaceChildren();
+    let label = `${squareName(square)}, ${land ? (land === 'core' ? 'the Core' : LAND[land].name) : 'no land'}`;
+    if (LAND_GLYPHS[land]) cell.append(make('span', 'land-mark', LAND_GLYPHS[land]));
+    if (game.phase === 'setup' && HOME[viewer].includes(square)) cell.classList.add('home');
     const unit = game.phase === 'setup' && HOME[viewer].includes(square)
       ? (draft[HOME[viewer].indexOf(square)] && { owner: viewer, type: draft[HOME[viewer].indexOf(square)], revealed: false })
       : view.units[square];
@@ -125,20 +167,37 @@ function renderBoard(view, actions) {
       cell.append(token);
       label += `, ${own ? 'your' : 'enemy'} ${unit.type ? unitName(unit.type) : 'hidden unit'}${!unit.revealed && unit.type ? ' (hidden from your opponent)' : ''}${unit.seen ? `, scouted as ${unitName(unit.seen)}${unit.stale ? ' before a succession' : ''}` : ''}`;
     }
+    if (game.phase !== 'setup' && view.surge.targets.includes(square)) { cell.classList.add('marked'); label += `, marked by the next ${SURGES[view.surge.card].name}`; }
+    else if (game.phase !== 'setup' && view.upcoming?.targets.includes(square)) { cell.classList.add('marked-later'); label += `, marked by the ${SURGES[view.upcoming.card].name} after that`; }
     const target = game.phase !== 'setup' && targetAction(square, actions);
     if (target) { cell.classList.add('target', `target-${target.kind}`); label += `, ${target.kind} here`; }
     if (selected === square) cell.classList.add('selected');
+    if (selectedNeighbors.includes(square)) cell.classList.add('adjacent');
     if (lastSquares.includes(square)) cell.classList.add('last');
     cell.setAttribute('aria-label', label);
-    cell.addEventListener('click', () => clickSquare(square, view, actions));
-    board.append(cell);
   }
+  // Play the Shattering once, when the field first breaks.
+  if (hex && !wasShattered) {
+    const frame = board.parentElement;
+    frame.classList.remove('shattering');
+    void frame.offsetWidth;
+    frame.classList.add('shattering');
+  }
+  wasShattered = hex;
 }
 
-function unitCard(type, extra = '') {
+function unitCard(type) {
   const card = make('div', 'unit-card');
-  card.append(make('span', 'card-glyph', GLYPHS[type]), make('strong', '', `${unitName(type)} · ${UNITS[type].strength}`), make('small', '', `${UNITS[type].text}${extra}`));
+  card.append(make('span', 'card-glyph', GLYPHS[type]), make('strong', '', `${unitName(type)} · ${UNITS[type].strength}`), make('small', '', UNITS[type].text));
   return card;
+}
+
+function landChips(cards) {
+  for (const type of Object.keys(LAND)) {
+    const chip = button(`${LAND_GLYPHS[type] ?? '▭'} ${LAND[type].name}`, () => { tile = type; render(); }, `chip land-chip ${type}${tile === type ? ' active' : ''}`);
+    chip.title = LAND[type].text;
+    cards.append(chip);
+  }
 }
 
 function renderPanel(view, actions) {
@@ -152,76 +211,93 @@ function renderPanel(view, actions) {
   }
   if (isComputerTurn()) {
     title.textContent = 'The computer is thinking.';
-    hint.textContent = 'It knows only what a player in its seat would know: its own units, what it has revealed or scouted, and the land it holds.';
+    hint.textContent = 'It knows only what a player in its seat would know: its own units, what has been revealed, fallen or scouted, and the surge everyone can see.';
     return;
   }
-  if (game.phase === 'setup') {
-    title.textContent = 'Arrange your army.';
-    hint.textContent = 'Choose a unit, then a highlighted home square. One square stays empty. Click a placed unit to pick it up. Only you can see this arrangement.';
-    for (const type of Object.keys(UNITS)) {
-      const choice = button(`${GLYPHS[type]} ${unitName(type)} ×${remaining(type)}`, () => { placing = type; render(); }, `chip${placing === type ? ' active' : ''}`);
-      choice.disabled = remaining(type) === 0;
-      cards.append(choice);
-    }
-    buttons.append(
-      button('Arrange randomly', () => { draft = randomLayout(); render(); }, 'button wide'),
-      button('Confirm army', () => { const layout = draft; draft = Array(HOME[1].length).fill(null); placing = 'crown'; act({ kind: 'place', layout }); })
-    );
-    buttons.lastChild.disabled = draft.filter(Boolean).length !== ARMY.length;
-    return;
-  }
-  if (game.phase === 'build' || game.phase === 'bonus-build') {
-    title.textContent = game.phase === 'build' ? `Lay land${view.buildsLeft > 1 ? ` · ${view.buildsLeft} tiles` : ''}.` : `Builder bonus · ${view.bonusBuilds} tile${view.bonusBuilds === 1 ? '' : 's'}.`;
-    hint.textContent = 'Choose a tile from your hand, then a highlighted square touching existing land.';
-    for (const type of view.hand) {
-      const card = button(`${LAND_GLYPHS[type] ?? '▭'} ${LAND[type].name}`, () => { tile = type; render(); }, `chip land-chip ${type}${tile === type ? ' active' : ''}`);
-      card.title = LAND[type].text;
-      cards.append(card);
-    }
-    if (tile) hint.textContent += ` ${LAND[tile].name}: ${LAND[tile].text}`;
-    return;
-  }
-  if (game.phase === 'peek') {
-    title.textContent = 'Your Scout looks out.';
-    hint.textContent = `Choose a highlighted hidden enemy within ${SETTINGS.scoutRange} squares to see what it is. Only you will know.`;
-    return;
+  switch (game.phase) {
+    case 'setup':
+      title.textContent = 'Arrange your army.';
+      hint.textContent = 'Choose a unit, then a highlighted home square. One square stays empty. Click a placed unit to pick it up. Only you can see this arrangement.';
+      for (const type of Object.keys(UNITS)) {
+        const choice = button(`${GLYPHS[type]} ${unitName(type)} ×${remaining(type)}`, () => { placing = type; render(); }, `chip${placing === type ? ' active' : ''}`);
+        choice.disabled = remaining(type) === 0;
+        cards.append(choice);
+      }
+      buttons.append(
+        button('Arrange randomly', () => { draft = randomLayout(); render(); }, 'button wide'),
+        button('Confirm army', () => { const layout = draft; draft = Array(HOME[1].length).fill(null); placing = 'crown'; act({ kind: 'place', layout }); })
+      );
+      buttons.lastChild.disabled = draft.filter(Boolean).length !== ARMY.length;
+      return;
+    case 'grow':
+    case 'build':
+      title.textContent = game.phase === 'grow' ? 'The Core grows the land.' : `Builder · ${view.pending.left} tile${view.pending.left === 1 ? '' : 's'} to lay.`;
+      hint.textContent = `Choose a land type, then a highlighted square touching existing land. ${LAND[tile].name}: ${LAND[tile].text}`;
+      landChips(cards);
+      return;
+    case 'peek':
+      title.textContent = 'Your Scout looks out.';
+      hint.textContent = `Choose a highlighted hidden enemy within ${SETTINGS.scoutRange} steps to see what it is. Only you will know.`;
+      return;
+    case 'aim':
+      title.textContent = 'You hold the Core.';
+      hint.textContent = `Your unit on the Core lets you aim the coming ${SURGES[view.surge.card].name}. Choose a highlighted square for mark ${view.pending.slot + 1}, or keep the current marks.`;
+      buttons.append(button('Keep the current marks', () => act({ kind: 'keep-aim' }), 'button wide'));
+      return;
   }
   const unit = view.units[selected];
   if (!unit) {
-    title.textContent = 'Choose a unit.';
-    hint.textContent = 'Select one of your units to reveal, move or attack. Hidden units move one square but cannot attack.';
-    if (actions[0]?.kind === 'pass') buttons.append(button('Pass', () => act({ kind: 'pass' })));
-    return;
+    title.textContent = `Choose a unit · ${view.actionsLeft} action${view.actionsLeft === 1 ? '' : 's'} left.`;
+    hint.textContent = 'Select one of your units to reveal, move or attack. Hidden units move one step but cannot attack. One unit may take both actions, but attacks only once.';
+  } else {
+    title.textContent = `${unitName(unit.type)}${unit.revealed ? '' : ' (hidden)'}`;
+    hint.textContent = unit.revealed ? 'Highlighted squares show where it can move or attack. Outlined squares are its neighbours.' : 'Your opponent only sees an outline. Move it one step, or reveal it to use its power.';
+    cards.append(unitCard(unit.type));
+    if (actions.some(a => a.kind === 'reveal' && a.at === selected)) buttons.append(button(`Reveal ${unitName(unit.type)}`, () => act({ kind: 'reveal', at: selected })));
+    if (unit.type === 'crown' && actions.some(a => a.kind === 'succession')) {
+      buttons.append(button(succession ? 'Cancel succession' : 'Succession: hide the Crown elsewhere (both actions)', () => { succession = !succession; render(); }, 'button wide'));
+      if (succession) hint.textContent = 'Choose another of your hidden units. The Crown and that unit swap identities in secret. Uses both actions, once per game.';
+    }
   }
-  title.textContent = `${unitName(unit.type)}${unit.revealed ? '' : ' (hidden)'}`;
-  hint.textContent = unit.revealed ? 'Highlighted squares show where it can move or attack.' : 'Your opponent only sees an outline. Move it one square, or reveal it to use its power.';
-  cards.append(unitCard(unit.type));
-  if (actions.some(a => a.kind === 'reveal' && a.at === selected)) buttons.append(button(`Reveal ${unitName(unit.type)}`, () => act({ kind: 'reveal', at: selected })));
-  if (unit.type === 'crown' && actions.some(a => a.kind === 'succession')) {
-    buttons.append(button(succession ? 'Cancel succession' : 'Succession: hide the Crown elsewhere', () => { succession = !succession; render(); }, 'button wide'));
-    if (succession) hint.textContent = 'Choose another of your hidden units. The Crown and that unit swap identities in secret. You can do this once per game.';
-  }
+  buttons.append(button(`End turn${view.actionsLeft ? ` · skip ${view.actionsLeft} action${view.actionsLeft === 1 ? '' : 's'}` : ''}`, () => act({ kind: 'end-turn' }), 'button wide'));
 }
 
-function renderLand(view) {
-  $('#land-meta').textContent = `${view.stackLeft} IN STACK`;
-  const countdown = view.finalTurnsLeft === null ? '' : ` The land has run out: ${view.finalTurnsLeft} turn${view.finalTurnsLeft === 1 ? '' : 's'} remain before the units within ${SETTINGS.throneZone} squares of the Throne are counted.`;
-  $('#land-text').textContent = `Your hand: ${view.hand.map(type => LAND[type].name).join(', ') || 'empty'}. Your opponent holds ${view.opponentHand} tile${view.opponentHand === 1 ? '' : 's'}. Succession used: Player 1 ${view.successionUsed[1] ? 'yes' : 'no'}, Player 2 ${view.successionUsed[2] ? 'yes' : 'no'}.${countdown}`;
+function renderSurge(view) {
+  const card = SURGES[view.surge.card];
+  $('#surge-meta').textContent = `${view.deckName === 'wild' ? 'WILD' : 'CALM'} DECK · ${view.deckLeft} LEFT`;
+  $('#surge-name').textContent = card.name;
+  const timing = view.shattered ? 'after this turn' : view.currentPlayer === 2 ? 'after this turn, at the end of the round' : 'at the end of the round';
+  $('#surge-text').textContent = `${card.text} It happens ${timing}.${card.targets ? ' Its marked squares have solid stripes.' : ''}`;
+  $('#surge-then').hidden = !view.upcoming;
+  if (view.upcoming) {
+    const then = SURGES[view.upcoming.card];
+    $('#surge2-name').textContent = then.name;
+    $('#surge2-text').textContent = `${then.text} It happens after the following turn.${then.targets ? ' Its marked squares have faint stripes.' : ''}`;
+  }
+  const list = $('#unaccounted'); list.replaceChildren();
+  const counts = view.unaccounted.reduce((all, type) => ({ ...all, [type]: (all[type] ?? 0) + 1 }), {});
+  for (const [type, count] of Object.entries(counts)) list.append(make('span', 'chip static', `${GLYPHS[type]} ${unitName(type)}${count > 1 ? ` ×${count}` : ''}`));
+  if (!view.unaccounted.length) list.append(make('span', 'hint', 'None. Every enemy unit is known.'));
+  const enemy = viewer === 1 ? 2 : 1;
+  $('#intel-text').textContent = `Enemy succession: ${view.successionUsed[enemy] ? 'used — older scouting may be wrong' : 'not used yet'}. ${view.shattered ? 'The field has shattered.' : `The field shatters when a unit reaches the Core, or after round ${SETTINGS.shatterRound}.`}`;
 }
 
 function render() {
   const view = viewFor(game, viewer);
   const actions = $('#handoff').open || isComputerTurn() ? [] : getLegalActions(game);
+  current = { view, actions };
   $('#turn-dot').className = `dot p${game.currentPlayer}`;
-  const verb = game.phase === 'setup' ? 'arrange' : game.phase === 'act' ? 'act' : game.phase === 'peek' ? 'scout' : 'build';
+  const verb = { setup: 'arrange', act: 'act', peek: 'scout', build: 'build', grow: 'grow land', aim: 'aim the Core' }[game.phase] ?? 'act';
   $('#turn-title').textContent = view.result ? 'The battle is over' : `${playerName(game.currentPlayer)} to ${verb}`;
-  $('#turn-meta').textContent = game.phase === 'setup' ? 'SETUP' : `TURN ${String(view.turnNumber).padStart(2, '0')}`;
+  $('#turn-meta').textContent = game.phase === 'setup' ? 'SETUP' : `ROUND ${String(view.round).padStart(2, '0')}${view.shattered ? ' · SHATTERED' : ''}`;
+  const holder = view.units[CORE];
   const statuses = {
     setup: 'Place your army in secret. Your Crown goes wherever you choose.',
-    build: 'Lay one land tile next to existing land.',
-    'bonus-build': 'Your Builder lays extra land.',
-    act: 'Do one thing: reveal, move, attack, or use succession.',
+    act: `Take ${view.actionsLeft} more action${view.actionsLeft === 1 ? '' : 's'}: reveal, move, attack, or use succession.${holder?.owner === viewer && holder.type === 'crown' && holder.revealed ? ' Your Crown holds the Core — keep it there through the next round to win.' : ''}`,
     peek: 'Choose a hidden enemy for your Scout to look at.',
+    build: 'Your Builder lays land.',
+    grow: 'The Core surges with growth. Lay one land tile.',
+    aim: 'You hold the Core: aim its next surge.',
     over: view.result ? `${view.result.winner ? `Player ${view.result.winner} wins` : 'Draw'} · ${view.result.reason}` : ''
   };
   $('#status').textContent = isComputerTurn() ? 'The computer is taking its turn…' : statuses[game.phase];
@@ -229,11 +305,11 @@ function render() {
   $('#status').classList.toggle('finished', Boolean(view.result));
   renderPanel(view, actions);
   renderBoard(view, actions);
-  renderLand(view);
+  renderSurge(view);
   const log = $('#log'); log.replaceChildren();
   for (const entry of view.log.slice(-40).reverse()) {
-    const item = make('li');
-    item.append(make('span', `dot small p${entry.player}`), make('span', '', `${entry.turn ? `T${entry.turn} · ` : ''}${entry.text}`));
+    const item = make('li', entry.player === 0 ? 'core-entry' : '');
+    item.append(make('span', `dot small ${entry.player ? `p${entry.player}` : 'core'}`), make('span', '', `${entry.turn ? `T${entry.turn} · ` : ''}${entry.text}`));
     log.append(item);
   }
   scheduleComputer();
@@ -241,14 +317,17 @@ function render() {
 
 function showRules() {
   const blocks = [
-    ['Goal', 'Capture the enemy Crown, or start your turn with your revealed Crown standing on the Throne in the centre.'],
-    ['Setup', 'Each player secretly arranges 9 face-down units on their 10-square home island. Your Crown goes wherever you choose. Each player holds 2 land tiles.'],
-    ['Each turn', `1. Lay one land tile from your hand next to existing land, then draw. Player 2 lays 2 tiles on their first turn. 2. Do one thing: reveal a unit (its "when revealed" power happens now), move a unit one square up, down, left or right, attack with a revealed unit, or once per game use succession.`],
-    ['Combat', 'The defender is turned face up. Higher strength wins; the loser is removed. Ties remove both. A winning attacker moves into the square, except the Archer. Hills give +1 defence, and so does standing next to your own revealed Guard. The Assassin always beats the Crown and the Champion when it attacks.'],
+    ['Goal', `Capture the enemy Crown, or start ${SETTINGS.holdTurns} of your turns in a row with your revealed Crown on the Core.`],
+    ['Setup', 'Each player secretly arranges 9 face-down units on their 10-square home. Your Crown goes wherever you choose.'],
+    ['Your turn', `Take ${SETTINGS.actionsPerTurn} actions (Player 1 takes ${SETTINGS.firstTurnActions} on the very first turn). Reveal a unit, move a unit one step, attack with a revealed unit, or once per game use succession, which takes both actions. One unit may take both actions but attacks only once. You may end your turn early.`],
+    ['The Wild Core', 'The Core surges at the end of every round. The next surge card and the squares it will hit are always shown. Calm surges grow land, reveal hidden units, push units away, or strike with bolts of strength 3.'],
+    ['The Shattering', `The first time a unit reaches a square next to the Core — or at the end of round ${SETTINGS.shatterRound} — the field breaks into hexagons. Every cell then has 6 neighbours, the Wild deck takes over (storms, pulses, sinking land), and the Core surges after every turn. From then on the next two surges are always shown, so every mark is visible through one turn of each player before it strikes.`],
+    ['Holding the Core', 'A unit that starts its owner’s turn on the Core is never pushed or struck, and its owner aims the next surge. Only a revealed Crown can win there.'],
+    ['Combat', 'The defender is turned face up. Higher strength wins; ties remove both. A winning attacker moves in, except the Archer. Defenders get +1 on a Hill and +1 next to their revealed Guard. A revealed Crown gives +1 to friendly units next to it, attacking and defending. The Assassin always beats the Crown and the Champion when it attacks.'],
     ['Units', Object.values(UNITS).map(unit => `${unit.name} (${unit.strength}): ${unit.text}`).join(' ')],
     ['Land', `${Object.values(LAND).map(land => `${land.name}: ${land.text}`).join(' ')} Squares with no land cannot be entered.`],
-    ['Succession', 'Once per game, as your action, secretly swap your hidden Crown with another of your hidden units. Your opponent learns only that you used it, and anything their Scouts saw may now be out of date.'],
-    ['Running out of land', `When the land stack runs out, ${SETTINGS.finalTurns} more turns are played (counting each player's turn). Then whoever has more units within ${SETTINGS.throneZone} squares of the Throne wins.`]
+    ['Succession', 'Once per game, using both actions, secretly swap your hidden Crown with another of your hidden units. Your opponent learns only that you used it.'],
+    ['Intelligence', 'The side panel lists the enemy unit types you have not yet seen revealed, fallen, or scouted.']
   ];
   const container = $('#rules-content'); container.replaceChildren();
   for (const [heading, text] of blocks) { const block = make('section', 'rule'); block.append(make('h3', '', heading), make('p', '', text)); container.append(block); }
@@ -262,7 +341,7 @@ function startGame() {
   clearTimeout(computerTimer);
   computerTimer = null;
   game = createGame();
-  viewer = computer === null ? 1 : human; selected = null; tile = null; succession = false; lastSquares = [];
+  viewer = computer === null ? 1 : human; selected = null; tile = 'plains'; succession = false; lastSquares = []; wasShattered = false;
   draft = Array(HOME[1].length).fill(null); placing = 'crown';
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
   document.body.classList.remove('veiled');
@@ -272,7 +351,6 @@ function startGame() {
 $('#handoff').addEventListener('cancel', event => event.preventDefault());
 $('#ready-button').addEventListener('click', () => {
   viewer = game.currentPlayer;
-  tile = game.hands[viewer][0] ?? null;
   $('#handoff').close();
   document.body.classList.remove('veiled');
   render();
