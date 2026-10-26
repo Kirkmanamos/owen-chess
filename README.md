@@ -20,6 +20,7 @@ Open **http://localhost:5173**. There are no packages to install, build steps, a
 npm test       # Rule tests and seeded simulated play
 npm run check  # Entry-point syntax checks plus the tests
 npm run build  # Copy browser assets into dist/ for static hosting
+npm run simulate -- --games 200   # Bot-vs-bot balance metrics across rule settings
 ```
 
 ## Play
@@ -72,6 +73,9 @@ The bonus is once per turn, even with two or three normal actions, and combines 
 | `tests/exposure.test.js` | Reveal distances, blockers, player directions, promotion, privacy and king responses |
 | `tests/stack-experiments.test.js` | All eight experiment combinations, compound actions, scouting privacy and king responses |
 | `tests/bonus-reveal.test.js` | Bounded reveal turns, skipping, check responses, privacy, stacking interactions and seeded play |
+| `scripts/simulate.mjs` | Runs bot-vs-bot games per rule setting in worker threads; writes `artifacts/simulation-<date>.json` |
+| `scripts/sim/bots.js` | Random, one-ply greedy, and two-ply lookahead bots that see only public information |
+| `scripts/sim/play.js` | One simulated game and its metrics (length, outcome, king reveals, feature use, lead changes) |
 
 The engine exports `createGame(overrides, random)`, `getLegalActions(state)`, `applyAction(state, action)`, and `publicView(state)`. All actions are validated by the engine. `applyAction` returns a new state and never mutates the supplied one. An injectable random function supports deterministic tests.
 
