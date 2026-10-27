@@ -4,8 +4,9 @@ import { buildCourse } from '../src/course.js';
 import * as italian from '../src/openings/italian.js';
 import * as ruy from '../src/openings/ruy-lopez.js';
 import * as queensGambit from '../src/openings/queens-gambit.js';
+import * as caroKann from '../src/openings/caro-kann.js';
 
-const modules = [italian, ruy, queensGambit];
+const modules = [italian, ruy, queensGambit, caroKann];
 const course = buildCourse(modules);
 const openingOf = line => course.openingById.get(line.opening);
 
@@ -55,6 +56,15 @@ test('the Elephant Trap leaves Black a knight ahead', () => {
   const board = course.byId.get('qgd-elephant').positions.at(-1).board;
   const count = (pieces) => board.filter(p => p && pieces.includes(p)).length;
   assert.equal(count('nbrq'.split('')) - count('NBRQ'.split('')), 1);
+});
+
+test('the Caro-Kann branches off 1.e4 beside 1...e5', () => {
+  assert.deepEqual(course.nodes.get('e4').children.map(c => c.san).sort(), ['c6', 'e5']);
+  assert.deepEqual(course.nodes.get('e4 c6 d4 d5').children.map(c => c.san).sort(), ['Nc3', 'e5', 'exd5']);
+});
+
+test('the Caro-Kann smothered trap ends in checkmate', () => {
+  assert.equal(course.byId.get('ck-smothered').moves.at(-1).san, 'Nd6#');
 });
 
 test('the Shilling trap ends in checkmate', () => {

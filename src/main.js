@@ -3,12 +3,13 @@ import { buildCourse, moveNumber } from './course.js';
 import * as italian from './openings/italian.js';
 import * as ruyLopez from './openings/ruy-lopez.js';
 import * as queensGambit from './openings/queens-gambit.js';
+import * as caroKann from './openings/caro-kann.js';
 import { play, isMuted, setMuted } from './sound.js';
 import { confettiFrom } from './confetti.js';
 import { DAY, progressKey, recordRun, isMastered, dueKeys, whenDue, buildDrill } from './progress.js';
 
 const $ = selector => document.querySelector(selector);
-const course = buildCourse([italian, ruyLopez, queensGambit]);
+const course = buildCourse([italian, ruyLopez, queensGambit, caroKann]);
 const GLYPHS = { k: ['♔', '♚'], q: ['♕', '♛'], r: ['♖', '♜'], b: ['♗', '♝'], n: ['♘', '♞'], p: ['♙', '♟'] };
 const NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const SIDE = { w: 'White', b: 'Black' };
@@ -640,8 +641,8 @@ function nextLine() {
 function branchLabel(lines) {
   if (lines.length === 1) return `${lines[0].family}: ${lines[0].name}`;
   if (new Set(lines.map(l => l.family)).size === 1) return `${lines[0].family} · ${lines.length} lines`;
-  const openings = new Set(lines.map(l => l.opening));
-  return openings.size === 1 ? `${course.openingById.get(lines[0].opening).name} · ${lines.length} lines` : `${lines.length} lines`;
+  const openings = [...new Set(lines.map(l => l.opening))].map(id => course.openingById.get(id).name);
+  return `${openings.join(' or ')} · ${lines.length} lines`;
 }
 
 function renderDrillIntro(coach) {

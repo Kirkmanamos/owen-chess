@@ -1,6 +1,6 @@
 # Opening Arena
 
-An interactive chess opening trainer. It teaches the **Italian Game** (1.e4 e5 2.Nf3 Nc6 3.Bc4), the **Ruy Lopez** (3.Bb5), and the **Queen's Gambit** (1.d4 d5 2.c4) with their main variations. Switch openings with the tabs above the board. The move tree shows every opening that starts with the same first move, so you can see exactly where the Italian and Ruy Lopez split.
+An interactive chess opening trainer. It teaches the **Italian Game** (1.e4 e5 2.Nf3 Nc6 3.Bc4), the **Ruy Lopez** (3.Bb5), the **Queen's Gambit** (1.d4 d5 2.c4), and the **Caro-Kann Defense** (1.e4 c6) with their main variations. Switch openings with the tabs above the board. The move tree shows every opening that starts with the same first move, so you can see exactly where the Italian and Ruy Lopez split.
 
 **Open online:** [Opening Arena](https://kirkmanamos.github.io/owen-chess/).
 
@@ -68,6 +68,16 @@ Keyboard: ← / → step through moves in Learn mode, Home / End jump to the sta
 | Accepted (2…dxc4) | Classical: 3.Nf3 and …c5 | White |
 | Accepted | Why holding the pawn fails | White |
 | Slav (2…c6) | Main line: 5.a4 Bf5 | White |
+
+## Caro-Kann Defense lines
+
+| Family | Line | You play |
+| --- | --- | --- |
+| Classical (4…Bf5) | Main line: h4 and long castling | Black |
+| Karpov (4…Nd7) | Main line: knights trade on f6 | Black |
+| Karpov | The trap to avoid: 5…Ngf6?? | White |
+| Advance (3.e5) | Short system: strike with …c5 | Black |
+| Exchange (3.exd5) | Exchange: a reversed Queen's Gambit | Black |
 
 ## Adding an opening
 
