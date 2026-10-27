@@ -7,8 +7,9 @@ import * as ruy from '../src/openings/ruy-lopez.js';
 import * as queensGambit from '../src/openings/queens-gambit.js';
 import * as caroKann from '../src/openings/caro-kann.js';
 import * as scotch from '../src/openings/scotch.js';
+import * as london from '../src/openings/london.js';
 
-const modules = [italian, ruy, scotch, caroKann, queensGambit];
+const modules = [italian, ruy, scotch, caroKann, queensGambit, london];
 const course = buildCourse(modules);
 const openingOf = line => course.openingById.get(line.opening);
 
@@ -83,4 +84,10 @@ test('in the Scotch 3...Nxd4 line, Qd5 threatens mate on f7', () => {
   // Give White the move again: Qxf7 should then be checkmate.
   const threat = moveFromSan({ ...after, turn: 'w' }, 'Qxf7');
   assert.equal(toSan({ ...after, turn: 'w' }, threat), 'Qxf7#');
+});
+
+test('the London shares the 1.d4 tree with the Queen\'s Gambit', () => {
+  assert.deepEqual(course.nodes.get('d4').children.map(c => c.san).sort(), ['Nf6', 'd5']);
+  assert.deepEqual(course.nodes.get('d4 d5').children.map(c => c.san).sort(), ['Bf4', 'c4']);
+  for (const line of course.lines.filter(l => l.opening === 'london')) assert.ok(line.sans.includes('Bf4'), line.id);
 });

@@ -1,6 +1,6 @@
 # Opening Arena
 
-An interactive chess opening trainer. It teaches the **Italian Game** (1.e4 e5 2.Nf3 Nc6 3.Bc4), the **Ruy Lopez** (3.Bb5), the **Scotch Game** (3.d4), the **Caro-Kann Defense** (1.e4 c6), and the **Queen's Gambit** (1.d4 d5 2.c4) with their main variations. Switch openings with the tabs above the board. The move tree shows every opening that starts with the same first move, so you can see exactly where the Italian, Ruy Lopez, and Scotch split.
+An interactive chess opening trainer. It teaches the **Italian Game** (1.e4 e5 2.Nf3 Nc6 3.Bc4), the **Ruy Lopez** (3.Bb5), the **Scotch Game** (3.d4), the **Caro-Kann Defense** (1.e4 c6), the **Queen's Gambit** (1.d4 d5 2.c4), and the **London System** (1.d4 with Bf4) with their main variations. Switch openings with the tabs above the board. The move tree shows every opening that starts with the same first move, so you can see exactly where the Italian, Ruy Lopez, and Scotch split.
 
 **Open online:** [Opening Arena](https://kirkmanamos.github.io/owen-chess/).
 
@@ -69,6 +69,15 @@ Keyboard: ← / → step through moves in Learn mode, Home / End jump to the sta
 | Accepted | Why holding the pawn fails | White |
 | Slav (2…c6) | Main line: 5.a4 Bf5 | White |
 
+## London System lines
+
+| Family | Line | You play |
+| --- | --- | --- |
+| Main setup (1…d5) | The full setup and castling | White |
+| Main setup | Attacking plan: Ne5 and f4 | White |
+| Early …c5 and …Qb6 | Meeting …Qb6 | White |
+| Against …g6 | Against a King's Indian setup | White |
+
 ## Scotch Game lines
 
 | Family | Line | You play |
@@ -91,6 +100,6 @@ Keyboard: ← / → step through moves in Learn mode, Home / End jump to the sta
 
 ## Adding an opening
 
-Each course is one file in `src/openings/`, registered in `src/main.js`. It exports `opening` (name, shared starting moves, intro), `lines` (each a full move sequence in standard notation with a summary and key ideas), and `notes` (coaching text keyed by the move path that reaches the position, with optional `arrows` like `'c4f7'` and `marks` like `'f7'`). Positions shared by several lines are explained once, even across openings: the Ruy Lopez relies on the Italian file's notes for 1.e4 e5 2.Nf3 Nc6. The course tests check that every line is legal and every move has a note.
+Each course is one file in `src/openings/`, registered in `src/main.js`. It exports `opening` (name, shared starting moves, intro, and an optional `label` for the heading), `lines` (each a full move sequence in standard notation with a summary and key ideas), and `notes` (coaching text keyed by the move path that reaches the position, with optional `arrows` like `'c4f7'` and `marks` like `'f7'`). Positions shared by several lines are explained once, even across openings: the Ruy Lopez relies on the Italian file's notes for 1.e4 e5 2.Nf3 Nc6. The course tests check that every line is legal and every move has a note.
 
 `src/progress.js` schedules reviews and builds drills. `src/sound.js` synthesizes every sound with the Web Audio API, so there are no audio files. `src/confetti.js` draws the confetti. `src/chess.js` is a self-contained legal-move generator with SAN reading and writing. `src/course.js` replays lines and merges them into the move tree. `src/main.js` is the interface.

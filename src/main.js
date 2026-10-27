@@ -5,12 +5,13 @@ import * as ruyLopez from './openings/ruy-lopez.js';
 import * as queensGambit from './openings/queens-gambit.js';
 import * as caroKann from './openings/caro-kann.js';
 import * as scotch from './openings/scotch.js';
+import * as london from './openings/london.js';
 import { play, isMuted, setMuted } from './sound.js';
 import { confettiFrom } from './confetti.js';
 import { DAY, progressKey, recordRun, isMastered, dueKeys, whenDue, buildDrill } from './progress.js';
 
 const $ = selector => document.querySelector(selector);
-const course = buildCourse([italian, ruyLopez, scotch, caroKann, queensGambit]);
+const course = buildCourse([italian, ruyLopez, scotch, caroKann, queensGambit, london]);
 const GLYPHS = { k: ['♔', '♚'], q: ['♕', '♛'], r: ['♖', '♜'], b: ['♗', '♝'], n: ['♘', '♞'], p: ['♙', '♟'] };
 const NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const SIDE = { w: 'White', b: 'Black' };
@@ -844,16 +845,27 @@ function renderLineSelect() {
 
 function renderOpening() {
   const current = opening();
-  $('#opening-tabs').replaceChildren(...course.openings.map(o => {
-    const tab = button(o.name, () => {
-      if (o.id === current.id) return;
-      selectLine(linesOf(o.id)[0].id, { mode: state.mode === 'drill' ? 'learn' : state.mode });
-    }, `opening-tab${o.id === current.id ? ' active' : ''}`);
-    tab.setAttribute('role', 'tab');
-    tab.setAttribute('aria-selected', String(o.id === current.id));
-    return tab;
+  // Group the tabs by White's first move, the way the move trees are split.
+  const groups = new Map();
+  for (const o of course.openings) {
+    const first = o.moves.split(' ')[0];
+    groups.set(first, [...(groups.get(first) || []), o]);
+  }
+  $('#opening-tabs').replaceChildren(...[...groups].map(([first, openings]) => {
+    const group = make('div', 'opening-group');
+    group.append(make('span', 'opening-group-label', moveNumber(1, first)));
+    for (const o of openings) {
+      const tab = button(o.name, () => {
+        if (o.id === current.id) return;
+        selectLine(linesOf(o.id)[0].id, { mode: state.mode === 'drill' ? 'learn' : state.mode });
+      }, `opening-tab${o.id === current.id ? ' active' : ''}`);
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-selected', String(o.id === current.id));
+      group.append(tab);
+    }
+    return group;
   }));
-  $('#opening-moves').textContent = numbered(current.moves);
+  $('#opening-moves').textContent = current.label || numbered(current.moves);
   $('#opening-title').textContent = current.name;
   document.title = `Opening Arena · ${current.name}`;
 }

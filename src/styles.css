@@ -251,3 +251,6 @@ h2,h3{font-family:Georgia,serif;font-weight:normal;letter-spacing:-.3px}
 .opening-tab{border:1px solid #bfc8bb;background:transparent;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:650;color:var(--muted)}
 .opening-tab:hover{background:#e5e9dd}
 .opening-tab.active{background:var(--green);border-color:var(--green);color:#fff}
+.opening-tabs{gap:8px 18px}
+.opening-group{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.opening-group-label{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px}
