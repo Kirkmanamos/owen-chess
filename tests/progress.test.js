@@ -4,7 +4,7 @@ import { DAY, INTERVALS, progressKey, recordRun, dueKeys, whenDue, buildDrill } 
 import { buildCourse } from '../src/course.js';
 import * as italian from '../src/openings/italian.js';
 
-const course = buildCourse(italian);
+const course = buildCourse([italian]);
 const key = progressKey('evans', 'w');
 const now = 1_000_000_000_000;
 

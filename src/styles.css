@@ -245,3 +245,9 @@ h2,h3{font-family:Georgia,serif;font-weight:normal;letter-spacing:-.3px}
 .drill-results .clean .mark{color:var(--good);font-weight:700}
 .drill-results .missed .mark{color:var(--danger);font-weight:700}
 .drill-results small{color:var(--muted)}
+
+/* Opening switcher */
+.opening-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.opening-tab{border:1px solid #bfc8bb;background:transparent;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:650;color:var(--muted)}
+.opening-tab:hover{background:#e5e9dd}
+.opening-tab.active{background:var(--green);border-color:var(--green);color:#fff}

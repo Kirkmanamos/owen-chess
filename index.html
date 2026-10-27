@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f3f1e9">
-  <title>Opening Arena · The Italian Game</title>
+  <title>Opening Arena</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232c4941'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-size='48' fill='%23f7f2df'%3E♝%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="./src/styles.css">
 </head>
@@ -16,7 +16,7 @@
     </header>
 
     <main>
-      <div class="intro"><div><p class="eyebrow">COURSE 1 · 1.e4 e5 2.Nf3 Nc6 3.Bc4</p><h1>The Italian Game</h1></div><p>Step through each variation with a coach, then prove it in practice.<br>Play a clean run without hints to master a line.</p></div>
+      <div class="intro"><div><div id="opening-tabs" class="opening-tabs" role="tablist" aria-label="Opening"></div><p id="opening-moves" class="eyebrow"></p><h1 id="opening-title"></h1></div><p>Step through each variation with a coach, then prove it in practice.<br>Play a clean run without hints to master a line.</p></div>
 
       <div class="play-area">
         <section class="board-section" aria-label="Board">
@@ -41,7 +41,7 @@
       </div>
 
       <div class="lower-area">
-        <section class="panel"><div class="panel-heading"><h2>Variations</h2><span class="micro-label">CHOOSE A LINE TO STUDY</span></div><div id="line-cards" class="line-cards"></div></section>
+        <section class="panel"><div class="panel-heading"><h2 id="variations-title">Variations</h2><span class="micro-label">CHOOSE A LINE TO STUDY</span></div><div id="line-cards" class="line-cards"></div></section>
         <section class="panel"><div class="panel-heading"><h2>Move tree</h2><span class="micro-label">WHERE THE LINES SPLIT</span></div><div id="tree" class="tree"></div></section>
       </div>
       <footer class="page-footer"><span>Opening Arena</span><span>More openings coming. Progress is saved in this browser.</span></footer>

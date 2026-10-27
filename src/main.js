@@ -1,12 +1,13 @@
 import { legalMoves, toSan, squareName, squareIndex, rowOf, colOf, colorOf, inCheck } from './chess.js';
 import { buildCourse, moveNumber } from './course.js';
 import * as italian from './openings/italian.js';
+import * as ruyLopez from './openings/ruy-lopez.js';
 import { play, isMuted, setMuted } from './sound.js';
 import { confettiFrom } from './confetti.js';
 import { DAY, progressKey, recordRun, isMastered, dueKeys, whenDue, buildDrill } from './progress.js';
 
 const $ = selector => document.querySelector(selector);
-const course = buildCourse(italian);
+const course = buildCourse([italian, ruyLopez]);
 const GLYPHS = { k: ['♔', '♚'], q: ['♕', '♛'], r: ['♖', '♜'], b: ['♗', '♝'], n: ['♘', '♞'], p: ['♙', '♟'] };
 const NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const SIDE = { w: 'White', b: 'Black' };
@@ -73,6 +74,12 @@ const currentPly = () => practicing() && state.practice ? state.practice.ply : s
 const position = () => line().positions[currentPly()];
 const pathAt = ply => ply ? line().paths[ply - 1] : '';
 const lineLabel = l => `${l.family}: ${l.name}`;
+const opening = () => course.openingById.get(line().opening);
+const linesOf = openingId => course.lines.filter(l => l.opening === openingId);
+const noteAt = path => course.noteFor(path, line().opening);
+
+// Format a SAN sequence as numbered moves: "1.e4 e5 2.Nf3".
+const numbered = sans => sans.split(' ').map((san, i) => i % 2 ? san : `${i / 2 + 1}.${san}`).join(' ');
 
 // ---------- Navigation ----------
 
@@ -197,7 +204,7 @@ function queueReply() {
     const previous = state.feedback?.kind === 'good' ? state.feedback : null;
     p.ply++;
     p.hint = 0;
-    const note = course.noteFor(l.paths[p.ply - 1]);
+    const note = noteAt(l.paths[p.ply - 1]);
     state.anim = motion(l.moves[p.ply - 1]);
     state.feedback = { kind: 'reply', move: l.moves[p.ply - 1], ply: p.ply, text: note?.text, previous };
     if (p.ply >= p.end) finishPractice();
@@ -246,7 +253,7 @@ function practiceMove(move) {
     p.hint = 0;
     state.anim = { ...motion(expected), celebrate: true, cheer: STREAK_CHEERS[p.streak] };
     play('correct', MOTION_MS + 60, Math.max(0, p.streak - 1));
-    state.feedback = { kind: 'good', move: expected, ply: p.ply, text: course.noteFor(l.paths[p.ply - 1])?.text };
+    state.feedback = { kind: 'good', move: expected, ply: p.ply, text: noteAt(l.paths[p.ply - 1])?.text };
     queueReply();
     return;
   }
@@ -332,7 +339,7 @@ function arrowsToDraw() {
     if (p.hint === 1 && !p.done) return { arrows: [], marks: [l.moves[p.ply].from] };
     if (!['good', 'reply'].includes(state.feedback?.kind)) return { arrows: [], marks: [] };
   }
-  const note = course.noteFor(pathAt(ply));
+  const note = noteAt(pathAt(ply));
   return {
     arrows: (note?.arrows || []).map(a => [squareIndex(a.slice(0, 2)), squareIndex(a.slice(2)), 'idea']),
     marks: (note?.marks || []).map(squareIndex)
@@ -559,9 +566,9 @@ function renderCoach() {
   const l = line();
   if (state.mode === 'learn') {
     const ply = state.ply;
-    const note = course.noteFor(pathAt(ply));
+    const note = noteAt(pathAt(ply));
     coach.append(make('p', 'eyebrow', ply ? `${SIDE[ply % 2 ? 'w' : 'b'].toUpperCase()} PLAYED` : 'WELCOME'));
-    coach.append(make('h2', 'coach-title', ply ? moveNumber(ply, l.moves[ply - 1].san) : course.opening.name));
+    coach.append(make('h2', 'coach-title', ply ? moveNumber(ply, l.moves[ply - 1].san) : opening().name));
     coach.append(make('p', 'coach-text', note?.text || ''));
     if (state.feedback) coach.append(make('p', `feedback ${state.feedback.kind}`, state.feedback.text));
     if (ply >= l.moves.length) {
@@ -625,7 +632,15 @@ function renderCoach() {
 
 function nextLine() {
   const rest = course.lines.filter(l => l.id !== state.lineId);
-  return rest.find(l => !mastered(l)) || null;
+  // Prefer an unmastered line from the same opening.
+  return rest.find(l => l.opening === line().opening && !mastered(l)) || rest.find(l => !mastered(l)) || null;
+}
+
+function branchLabel(lines) {
+  if (lines.length === 1) return `${lines[0].family}: ${lines[0].name}`;
+  if (new Set(lines.map(l => l.family)).size === 1) return `${lines[0].family} · ${lines.length} lines`;
+  const openings = new Set(lines.map(l => l.opening));
+  return openings.size === 1 ? `${course.openingById.get(lines[0].opening).name} · ${lines.length} lines` : `${lines.length} lines`;
 }
 
 function renderDrillIntro(coach) {
@@ -685,7 +700,7 @@ function renderBranches() {
       const names = child.lines.map(id => course.byId.get(id));
       const item = button('', () => goToPath(child.path), `branch${inLine ? ' current' : ''}`);
       item.append(make('strong', '', moveNumber(child.ply, child.san)));
-      item.append(make('span', '', inLine ? (options.length > 1 ? 'This line' : 'Next in this line') : names.length > 1 ? `${names[0].family} · ${names.length} lines` : `${names[0].family}: ${names[0].name}`));
+      item.append(make('span', '', inLine ? (options.length > 1 ? 'This line' : 'Next in this line') : branchLabel(names)));
       list.append(item);
     }
     if (options.length > 1) panel.append(make('p', 'muted small', `${options.length} moves are covered here. Choose one to follow that variation.`));
@@ -729,11 +744,12 @@ function renderMoves() {
 function renderCards() {
   const host = $('#line-cards');
   host.replaceChildren();
-  const families = [...new Set(course.lines.map(l => l.family))];
-  for (const family of families) {
+  const lines = linesOf(line().opening);
+  $('#variations-title').textContent = `${opening().name} variations`;
+  for (const family of new Set(lines.map(l => l.family))) {
     const group = make('div', 'family');
     group.append(make('p', 'eyebrow', family.toUpperCase()));
-    for (const l of course.lines.filter(x => x.family === family)) {
+    for (const l of lines.filter(x => x.family === family)) {
       const card = make('article', `line-card${l.id === state.lineId ? ' active' : ''}`);
       const title = make('div', 'line-card-title');
       title.append(make('h3', '', l.name));
@@ -802,19 +818,38 @@ function renderTree() {
   host.append(run(course.root.children[0], true));
 }
 
+// The variation menu lists the current opening's lines, grouped by family.
 function renderLineSelect() {
   const select = $('#line-select');
-  for (const family of new Set(course.lines.map(l => l.family))) {
+  if (select.dataset.opening === line().opening) return;
+  select.dataset.opening = line().opening;
+  const lines = linesOf(line().opening);
+  select.replaceChildren(...[...new Set(lines.map(l => l.family))].map(family => {
     const group = make('optgroup');
     group.label = family;
-    for (const l of course.lines.filter(x => x.family === family)) {
+    for (const l of lines.filter(x => x.family === family)) {
       const option = make('option', '', l.name);
       option.value = l.id;
       group.append(option);
     }
-    select.append(group);
-  }
-  select.addEventListener('change', () => selectLine(select.value));
+    return group;
+  }));
+}
+
+function renderOpening() {
+  const current = opening();
+  $('#opening-tabs').replaceChildren(...course.openings.map(o => {
+    const tab = button(o.name, () => {
+      if (o.id === current.id) return;
+      selectLine(linesOf(o.id)[0].id, { mode: state.mode === 'drill' ? 'learn' : state.mode });
+    }, `opening-tab${o.id === current.id ? ' active' : ''}`);
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', String(o.id === current.id));
+    return tab;
+  }));
+  $('#opening-moves').textContent = numbered(current.moves);
+  $('#opening-title').textContent = current.name;
+  document.title = `Opening Arena · ${current.name}`;
 }
 
 // Slide new coaching text in, so each move's lesson feels like a fresh card.
@@ -828,6 +863,8 @@ function animateCoach() {
 }
 
 function render() {
+  renderOpening();
+  renderLineSelect();
   renderBoard();
   renderStatus();
   renderControls();
@@ -914,6 +951,6 @@ document.addEventListener('keydown', event => {
 });
 
 applyTheme();
-renderLineSelect();
+$('#line-select').addEventListener('change', event => selectLine(event.target.value));
 renderSoundToggle();
 render();
