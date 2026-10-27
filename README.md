@@ -1,6 +1,6 @@
 # Opening Arena
 
-An interactive chess opening trainer. It teaches the **Italian Game** (1.e4 e5 2.Nf3 Nc6 3.Bc4), the **Ruy Lopez** (3.Bb5), the **Queen's Gambit** (1.d4 d5 2.c4), and the **Caro-Kann Defense** (1.e4 c6) with their main variations. Switch openings with the tabs above the board. The move tree shows every opening that starts with the same first move, so you can see exactly where the Italian and Ruy Lopez split.
+An interactive chess opening trainer. It teaches the **Italian Game** (1.e4 e5 2.Nf3 Nc6 3.Bc4), the **Ruy Lopez** (3.Bb5), the **Scotch Game** (3.d4), the **Caro-Kann Defense** (1.e4 c6), and the **Queen's Gambit** (1.d4 d5 2.c4) with their main variations. Switch openings with the tabs above the board. The move tree shows every opening that starts with the same first move, so you can see exactly where the Italian, Ruy Lopez, and Scotch split.
 
 **Open online:** [Opening Arena](https://kirkmanamos.github.io/owen-chess/).
 
@@ -68,6 +68,16 @@ Keyboard: ← / → step through moves in Learn mode, Home / End jump to the sta
 | Accepted (2…dxc4) | Classical: 3.Nf3 and …c5 | White |
 | Accepted | Why holding the pawn fails | White |
 | Slav (2…c6) | Main line: 5.a4 Bf5 | White |
+
+## Scotch Game lines
+
+| Family | Line | You play |
+| --- | --- | --- |
+| Classical (4…Bc5) | Classical: the fight for d4 | White |
+| Schmidt (4…Nf6) | Mieses: e5 and c4 | White |
+| Steinitz (4…Qh4) | Punishing the early queen | White |
+| Scotch Gambit (4.Bc4) | Scotch Gambit: 5.e5 d5 | White |
+| Early mistake | Punishing 3…Nxd4? | White |
 
 ## Caro-Kann Defense lines
 

@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCourse } from '../src/course.js';
+import { moveFromSan, toSan } from '../src/chess.js';
 import * as italian from '../src/openings/italian.js';
 import * as ruy from '../src/openings/ruy-lopez.js';
 import * as queensGambit from '../src/openings/queens-gambit.js';
 import * as caroKann from '../src/openings/caro-kann.js';
+import * as scotch from '../src/openings/scotch.js';
 
-const modules = [italian, ruy, queensGambit, caroKann];
+const modules = [italian, ruy, scotch, caroKann, queensGambit];
 const course = buildCourse(modules);
 const openingOf = line => course.openingById.get(line.opening);
 
@@ -32,8 +34,8 @@ test('the move tree branches at the three main third-move replies', () => {
   assert.deepEqual(italianNode.children.map(c => c.san).sort(), ['Bc5', 'Nd4', 'Nf6']);
 });
 
-test('the Italian and the Ruy Lopez split at move 3', () => {
-  assert.deepEqual(course.nodes.get('e4 e5 Nf3 Nc6').children.map(c => c.san).sort(), ['Bb5', 'Bc4']);
+test('the Italian, Ruy Lopez, and Scotch split at move 3', () => {
+  assert.deepEqual(course.nodes.get('e4 e5 Nf3 Nc6').children.map(c => c.san).sort(), ['Bb5', 'Bc4', 'd4']);
   assert.deepEqual(course.nodes.get(ruy.opening.moves).children.map(c => c.san).sort(), ['Nf6', 'a6']);
 });
 
@@ -73,4 +75,12 @@ test('the Shilling trap ends in checkmate', () => {
 
 test('line ids are unique', () => {
   assert.equal(new Set(course.lines.map(l => l.id)).size, course.lines.length);
+});
+
+test('in the Scotch 3...Nxd4 line, Qd5 threatens mate on f7', () => {
+  const line = course.byId.get('scotch-nxd4');
+  const after = line.positions.at(-1);
+  // Give White the move again: Qxf7 should then be checkmate.
+  const threat = moveFromSan({ ...after, turn: 'w' }, 'Qxf7');
+  assert.equal(toSan({ ...after, turn: 'w' }, threat), 'Qxf7#');
 });

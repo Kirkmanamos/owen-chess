@@ -4,12 +4,13 @@ import * as italian from './openings/italian.js';
 import * as ruyLopez from './openings/ruy-lopez.js';
 import * as queensGambit from './openings/queens-gambit.js';
 import * as caroKann from './openings/caro-kann.js';
+import * as scotch from './openings/scotch.js';
 import { play, isMuted, setMuted } from './sound.js';
 import { confettiFrom } from './confetti.js';
 import { DAY, progressKey, recordRun, isMastered, dueKeys, whenDue, buildDrill } from './progress.js';
 
 const $ = selector => document.querySelector(selector);
-const course = buildCourse([italian, ruyLopez, queensGambit, caroKann]);
+const course = buildCourse([italian, ruyLopez, scotch, caroKann, queensGambit]);
 const GLYPHS = { k: ['♔', '♚'], q: ['♕', '♛'], r: ['♖', '♜'], b: ['♗', '♝'], n: ['♘', '♞'], p: ['♙', '♟'] };
 const NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const SIDE = { w: 'White', b: 'Black' };
