@@ -7,7 +7,8 @@ export const DEFAULT_RULES = {
   king: { revealResponse: true, allowPreparationWhenTrapped: true },
   pawn: { initialDoubleStep: false, promotion: 'queen' },
   stack: { enabled: true, unstack: 'orthogonal', anyAdjacent: false, stackAndStep: false, scouting: false },
-  outcome: { repetitionCount: 3, quietActionLimit: 100 }
+  outcome: { repetitionCount: 3, quietActionLimit: 100 },
+  chaos: { enabled: false, crownsToWin: 3, boredTurns: 12, nuhUhChance: 0.4, maxTokens: 3 }
 };
 
 export function createRules(overrides = {}) {
@@ -30,6 +31,11 @@ export function createRules(overrides = {}) {
   for (const key of ['enabled', 'anyAdjacent', 'stackAndStep', 'scouting']) {
     if (typeof rules.stack[key] !== 'boolean') throw new Error(`stack.${key} must be a boolean`);
   }
+  if (typeof rules.chaos.enabled !== 'boolean') throw new Error('chaos.enabled must be a boolean');
+  for (const [key, min, max] of [['crownsToWin', 1, 9], ['boredTurns', 2, 60], ['maxTokens', 0, 9]]) {
+    if (!Number.isInteger(rules.chaos[key]) || rules.chaos[key] < min || rules.chaos[key] > max) throw new Error(`chaos.${key} must be an integer from ${min} to ${max}`);
+  }
+  if (typeof rules.chaos.nuhUhChance !== 'number' || rules.chaos.nuhUhChance < 0 || rules.chaos.nuhUhChance > 1) throw new Error('chaos.nuhUhChance must be from 0 to 1');
   if (!['queen', 'rook', 'bishop', 'knight'].includes(rules.pawn.promotion)) throw new Error('Unsupported promotion piece');
   return rules;
 }

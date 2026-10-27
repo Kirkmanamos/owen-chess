@@ -1,4 +1,4 @@
-# Design notes — Version 0.5.0
+# Design notes — Version 0.7.0
 
 This is an evolving original game, not a chess rules implementation with a decorative hidden mode. Hidden identities, directional emergence, randomized armies, and pawn stacks are central. “Veiled Crowns” is only a working title.
 
@@ -82,6 +82,38 @@ All three toggles start **off**, may be combined freely, and require stack enabl
 - With two or three normal actions, there is still only one bonus after the final action. Choosing **End turn** early declines any unused actions and the bonus. The bonus allowance is never saved across turns.
 - Unlimited free reveals supersede this experiment. The settings UI disables the bonus checkbox while retaining its choice, and the engine treats it as inactive. All stack experiments remain independently compatible; stack scouting reveals an enemy, while this bonus reveals one of your own hidden tiles.
 - The bonus phase is explicit public turn state and part of repetition detection. Legal highlights and bonus availability use only public occupancy and revealed attacks, never secret identities.
+
+### Owen's Rules (Version 0.6)
+
+The game was originally designed by a 4-year-old who changed the rules on the fly. Owen's Rules keeps that spirit. Its chaos decides **what** happens, but players always see it coming and never lose everything. `chaos.enabled` is off by default; it is selected as a game mode.
+
+- **Taming principles.** (1) Announce before it bites: a visible boredom countdown and a "nervous" warning when anyone is close. (2) Progress survives: crowns are permanent, and a yanked goal pays a Not Fair token. (3) Bounded: 13 goals, at most 3 tokens, and one token spend per turn.
+- **Goals** are either *board* goals, which read the current position, or *tally* goals, which count public events after the goal appears. Goals were sized after feedback that "3 captures" or "a stack of 3" would finish almost immediately.
+- **Winning.** Finishing the current goal awards a crown and draws a new one at once. If an action completes the goal for both players, the actor wins it. First to `crownsToWin` (3) wins; checkmate wins instantly, as before.
+- **Changes happen only as the turn passes.** If anyone is one step away (`near`, usually target − 1), roll `nuhUhChance` (0.4). Otherwise, if `boredTurns` (12) have elapsed, change the goal for boredom.
+- **Draw rule.** Owen never picks the current goal, prefers goals not seen in the last four, and never picks a board goal that either player is already one step from finishing. `twins` needs stacking enabled.
+- **Not Fair tokens.** Whenever a goal is changed by "No! You play like this!", boredom, or the opponent's redraw, every player one step from finishing it gets a token. Redrawing your own goal refunds nothing. Spending is a free side action, one per turn, and never unlocks End turn or spends an action. *Pinky promise* blocks every change except winning through the opponent's turn and your next.
+- **Randomness** comes from a mulberry32 seed stored in the state, drawn after the army shuffle. Transitions stay pure and replayable, and seeded armies are identical with the mode on or off.
+- **Stalemate and checkmate** are judged on board actions only, so token actions never keep a stuck position alive.
+
+- **Captures (Version 0.6.1).** Every captured enemy goes into the capturer's Toy Box. A non-pawn catch gives a Sugar Rush (+1 action), tracked by `sugarTurn` so it happens at most once per turn. It is skipped for king responses, and giving check still ends the turn. Every `TOYS_PER_TOKEN` (4) toys pays a Not Fair token, up to the cap. In Owen's Rules, pawns stack with any adjacent pawn (always-on any-adjacent stacking).
+- **Unicorns.** In Owen's Rules every knight is drawn as the usual knight glyph plus a CSS horn in the same color, and named a unicorn. This is presentation only: the engine type stays `knight`, and movement is unchanged. Step 2 recipe names must not reuse "Unicorn" for a combination.
+- **Name.** The mode is called "Owen's Rules", never "Owen's Silly Rules".
+
+#### Planned next
+
+- **Hex time (event):** Owen announces it one turn ahead. The board morphs into hex tiles for a few turns with six-direction movement on the same 64 cells, then morphs back.
+
+#### Stacks and powers (Version 0.7)
+
+- **Who stacks.** Any revealed non-king piece can stack with any of your revealed non-king pieces within 2 squares (Chebyshev distance; it hops over). Stacks hold at most 3 pieces. The moving piece lands on the partner's square, and the partner stays on the bottom.
+- **Easy by design.** The first stack or toy-stack each turn costs no action (`chaos.hugTurn`), so the new power can be used immediately. Partners show a **+** marker, and clicking one stacks directly.
+- **Movement.** A stack attacks and moves with the union of its parts' movement (a pawn part steps one square any way, like the original pawn stacks), plus its power's geometry. Captures follow the normal rules: hidden targets are challenged, and kings and Forts can't be captured.
+- **Recipes.** A recipe key is the sorted part types, plus `*` when any part is a toy (the opponent's color). A new key rolls from the tame pool (wild pool if it includes a toy) using the stored seed, and `chaos.recipes` keeps it for the rest of the game. Froggy is never rolled for a mix that already contains a unicorn. Three of a kind always gives its signature power.
+- **Toys.** Captured units, with stacks split into parts, go to `chaos.toys[capturer]`. Adopting removes one toy of the chosen type and stacks it onto your piece. Toys can never be popped off; only your own non-bottom piece can pop onto an empty neighbor, and the remaining parts recompute their recipe. Not Fair tokens still count every captured unit, including toys you later use.
+- **Powers.** Bouncy (2-square straight jumps), Froggy (knight hops), Floaty (any square within 2), Ghosty (up to 3 through pieces), Fort (uncapturable), Sticky (touching enemies cannot move; they can still stack), Swappy (swap with any of your revealed pieces), Sneezy (push every touching enemy, hidden or not, one square straight away into an empty square), Pew Pew (capture a revealed non-king enemy exactly 2 away in a straight line without moving). Triples: Choo-Choo (+rook slides), Rainbow Unicorn (one or two knight hops), Wizard (teleport to any empty square of its color), Castle Crusher (rook lines through pieces), Mega Queen (+knight hops).
+- **King safety** uses the same legality filter as every other action. A sneeze can push a king; any resulting check is resolved on that player's turn as usual.
+- **Feedback.** Power events drive a toast (a rainbow ring for a new invention), a badge pop and ring on the tile, a highlighted Recipe Book row, and sparkles on every square the stack attacks. Zap fires a laser plus PEW!, sneeze shows ACHOO! with the pushed pieces sliding, swap slides both pieces, and a toy flies out of the Toy Box when adopted.
 
 ## Temporary assumptions
 

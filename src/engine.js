@@ -7,6 +7,8 @@ import { combinationActions, stackExperiments } from './rules/pawn-stack.js';
 import { isInCheck, newlyCheckedKing } from './rules/king.js';
 import { actionCost, beginTurn, hasBonusReveal } from './rules/turn.js';
 import { evaluateOutcome, positionKey } from './rules/outcome.js';
+import { createChaos, chaosActions, applyChaosAction, captureRewards, updateChaos, publicChaos } from './rules/chaos.js';
+import { changeOwenBoard, discoverPowers } from './rules/powers.js';
 
 export function createGame(overrides = {}, random = Math.random) {
   const rules = createRules(overrides);
@@ -16,6 +18,8 @@ export function createGame(overrides = {}, random = Math.random) {
     captured: [], history: [], result: null, quietActions: 0, repetitions: {}
   };
   state.repetitions[positionKey(state)] = 1;
+  // Drawn after the shuffle, so seeded armies match with chaos on or off.
+  if (rules.chaos.enabled) createChaos(state, random);
   return state;
 }
 
@@ -42,6 +46,12 @@ function changeBoard(state, action, simulation = false) {
     if (next.board[square]) next.captured.push({ ...next.board[square] });
     next.board[square] = null;
   };
+  // Owen's Rules: any-piece stacks, Toy Box toys, and stack powers.
+  if (state.chaos && ['stack', 'adopt', 'unstack', 'swap', 'sneeze', 'zap'].includes(action.kind)) {
+    changeOwenBoard(next, action, piece, capture);
+    for (const square of [action.from, action.to]) if (square !== undefined && !simulation) promote(next, square);
+    return next;
+  }
   switch (action.kind) {
     case 'reveal':
       // Own identity is also unknown. New kings receive the isolated response
@@ -79,7 +89,14 @@ function changeBoard(state, action, simulation = false) {
   return next;
 }
 
+// Board actions decide stalemate and checkmate. Owen's token actions are free
+// extras on top, so they never keep a stuck position alive.
 export function getLegalActions(state) {
+  const actions = boardActions(state);
+  return actions.length ? [...actions, ...chaosActions(state)] : actions;
+}
+
+function boardActions(state) {
   if (state.result) return [];
   const candidates = candidateActions(state);
   const safe = candidates.filter(action => !isInCheck(changeBoard(state, action, true), state.currentPlayer));
@@ -95,7 +112,7 @@ export function isPreparationResponse(state) {
   return Boolean(state.response) && !candidateActions(state).some(action => !isInCheck(changeBoard(state, action, true), state.currentPlayer));
 }
 
-const actionMatches = (a, b) => ['kind', 'from', 'to', 'step', 'scout', 'over'].every(key => a[key] === b[key]);
+const actionMatches = (a, b) => ['kind', 'from', 'to', 'step', 'scout', 'over', 'toy'].every(key => a[key] === b[key]);
 
 function describeAction(before, after, action) {
   const from = action.from === undefined ? '' : squareName(action.from);
@@ -107,6 +124,14 @@ function describeAction(before, after, action) {
     return `${before.bonusRevealPending ? 'Bonus reveal: ' : ''}Slid ${from} → ${to}, revealing ${revealedType}.${promotion}`;
   }
   if (action.kind === 'challenge') return `Challenged ${to}: ${after.board[action.to].type} revealed. Attacker stays on ${from}.`;
+  if (before.chaos) {
+    if (action.kind === 'stack') return `Stacked ${before.board[action.from].count > 1 ? 'a stack' : before.board[action.from].type} from ${from} onto ${before.board[action.to].count > 1 ? 'a stack' : before.board[action.to].type} on ${to}.`;
+    if (action.kind === 'adopt') return `Took a ${action.toy} out of the Toy Box and stacked it on ${from}.`;
+    if (action.kind === 'unstack') return `Popped a ${after.board[action.to].type} off ${from} onto ${to}.`;
+    if (action.kind === 'swap') return `Swapped ${from} and ${to}.`;
+    if (action.kind === 'sneeze') return `Sneezed on ${from}! Achoo!`;
+    if (action.kind === 'zap') return `Zapped ${to} from ${from}. Captured ${after.captured.at(-1).type}.`;
+  }
   if (action.kind === 'stack') return `Stacked pawns from ${from} onto ${to}${action.step === undefined ? '' : `, then stepped to ${squareName(action.step)}`}.${scoutText}`;
   if (action.kind === 'unstack') return `Unstacked a pawn from ${from} to ${to}.`;
   if (action.kind === 'finish-response') return 'Finished the king response with no escape.';
@@ -125,15 +150,21 @@ function switchTurn(state, player) {
 export function applyAction(state, requested) {
   const action = getLegalActions(state).find(legal => actionMatches(legal, requested));
   if (!action) throw new Error('That action is not legal in the current position.');
+  if (action.kind.startsWith('goal-')) return applyChaosAction(state, action);
   const actor = state.currentPlayer;
   const next = changeBoard(state, action);
+  if (state.chaos) {
+    next.chaos = { ...structuredClone(next.chaos), events: [] };
+    const landing = action.kind === 'stack' ? action.step ?? action.to : action.from;
+    if (['stack', 'adopt', 'unstack'].includes(action.kind)) discoverPowers(next, [landing]);
+  }
   next.bonusRevealPending = false;
   next.actionNumber += 1;
   next.turnActivity = true;
   next.history = [...state.history, { number: next.actionNumber, player: actor, text: describeAction(state, next, action) }];
   next.responseQueue = [...state.responseQueue];
   next.repetitions = { ...state.repetitions };
-  const irreversible = ['reveal', 'challenge', 'stack', 'unstack'].includes(action.kind) || next.captured.length > state.captured.length || state.board[action.from]?.type === 'pawn';
+  const irreversible = ['reveal', 'challenge', 'stack', 'unstack', 'adopt', 'swap', 'sneeze', 'zap'].includes(action.kind) || next.captured.length > state.captured.length || state.board[action.from]?.type === 'pawn';
   next.quietActions = irreversible ? 0 : state.quietActions + (action.kind === 'end-turn' ? 0 : 1);
 
   // A preparation action is an actual opportunity, not indefinite immunity.
@@ -157,7 +188,11 @@ export function applyAction(state, requested) {
     if (next.currentPlayer !== next.response.player) switchTurn(next, next.response.player);
     next.actionsLeft = 1;
   } else {
-    next.actionsLeft -= state.bonusRevealPending ? 0 : actionCost(action, state.rules);
+    // Owen's Rules: your first stack each turn (including a Toy Box toy) is free.
+    const freeHug = Boolean(state.chaos) && ['stack', 'adopt'].includes(action.kind) && state.chaos.hugTurn !== state.turnNumber && !state.response;
+    if (freeHug) next.chaos.hugTurn = state.turnNumber;
+    next.actionsLeft -= state.bonusRevealPending || freeHug ? 0 : actionCost(action, state.rules);
+    if (captureRewards(state, next, action, actor)) next.actionsLeft += 1;
     if (state.response || state.bonusRevealPending || action.kind === 'end-turn' || isInCheck(next, otherPlayer(actor))) {
       switchTurn(next, otherPlayer(actor));
     } else if (next.actionsLeft <= 0) {
@@ -170,7 +205,9 @@ export function applyAction(state, requested) {
   }
   const key = positionKey(next);
   next.repetitions[key] = (next.repetitions[key] || 0) + 1;
-  next.result = evaluateOutcome(next, getLegalActions(next));
+  next.result = evaluateOutcome(next, boardActions(next));
+  const crowned = next.result ? null : updateChaos(state, next, action, actor);
+  if (crowned) next.result = crowned;
   return next;
 }
 
@@ -179,7 +216,7 @@ export function applyAction(state, requested) {
 export function publicView(state) {
   return {
     board: state.board.map(piece => piece && (piece.revealed
-      ? { owner: piece.owner, revealed: true, type: piece.type, count: piece.count }
+      ? { owner: piece.owner, revealed: true, type: piece.type, count: piece.count, ...(piece.parts && { parts: piece.parts.map(part => ({ ...part })), power: piece.power }) }
       : { owner: piece.owner, revealed: false })),
     currentPlayer: state.currentPlayer, turnNumber: state.turnNumber, actionsLeft: state.actionsLeft,
     bonusRevealPending: state.bonusRevealPending,
@@ -188,6 +225,6 @@ export function publicView(state) {
     captured: state.captured.map(p => ({ owner: p.owner, type: p.type, count: p.count })),
     history: state.history.map(item => ({ ...item })),
     check: { 1: isInCheck(state, 1), 2: isInCheck(state, 2) },
-    rules: structuredClone(state.rules)
+    rules: structuredClone(state.rules), chaos: publicChaos(state)
   };
 }
