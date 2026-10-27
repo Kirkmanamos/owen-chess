@@ -228,3 +228,20 @@ h2,h3{font-family:Georgia,serif;font-weight:normal;letter-spacing:-.3px}
 .mini-board .l:last-child{background:var(--sq-last-light)}
 .mini-pieces{display:flex;gap:2px;font-size:30px;line-height:1;padding:4px 0}
 .mini-pieces .piece{font-size:30px}
+
+/* Drill and either-side practice */
+.mode-tabs{grid-template-columns:repeat(3,1fr)}
+.tab-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;vertical-align:1px}
+.side-toggle{display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.side-toggle .eyebrow{margin:0 4px 0 0}
+.side-choice{border:1px solid #bfc8bb;background:#fff;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600}
+.side-choice.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.badge.due{color:#8a4b14;background:#fbe6c8}
+.feedback.solved{background:#e2f0e6;border-color:var(--good);color:#1f5238}
+.drill-results{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:4px;font-size:13px}
+.drill-results button{width:100%;text-align:left;display:grid;grid-template-columns:20px 1fr auto;gap:6px;align-items:center;padding:6px 8px;border-radius:6px;background:#fff;border:1px solid var(--line);font-size:13px}
+.drill-results button:hover{background:#f0f2e8}
+.drill-results .clean .mark{color:var(--good);font-weight:700}
+.drill-results .missed .mark{color:var(--danger);font-weight:700}
+.drill-results small{color:var(--muted)}

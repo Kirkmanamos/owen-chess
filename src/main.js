@@ -3,13 +3,15 @@ import { buildCourse, moveNumber } from './course.js';
 import * as italian from './openings/italian.js';
 import { play, isMuted, setMuted } from './sound.js';
 import { confettiFrom } from './confetti.js';
+import { DAY, progressKey, recordRun, isMastered, dueKeys, whenDue, buildDrill } from './progress.js';
 
 const $ = selector => document.querySelector(selector);
 const course = buildCourse(italian);
 const GLYPHS = { k: ['♔', '♚'], q: ['♕', '♛'], r: ['♖', '♜'], b: ['♗', '♝'], n: ['♘', '♞'], p: ['♙', '♟'] };
 const NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const SIDE = { w: 'White', b: 'Black' };
-const STORAGE_KEY = 'opening-arena.mastered';
+const PROGRESS_KEY = 'opening-arena.progress';
+const LEGACY_MASTERED_KEY = 'opening-arena.mastered';
 const THEME_KEY = 'opening-arena.theme';
 const BOARDS = { garden: 'Garden', ocean: 'Ocean', candy: 'Candy', walnut: 'Walnut', midnight: 'Midnight' };
 const PIECE_SETS = { classic: 'Classic', marble: 'Marble', jade: 'Gold & Jade', candy: 'Candy', ember: 'Ember' };
@@ -26,19 +28,29 @@ const state = {
   focus: squareIndex('e2'),
   feedback: null,
   practice: null,
+  drill: null,
   anim: null,
   timer: null
 };
 
-let mastered = loadMastered();
+let progress = loadProgress();
 
-function loadMastered() {
-  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY)) || []); } catch { return new Set(); }
+function loadProgress() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROGRESS_KEY));
+    if (saved) return saved;
+    // Lines mastered before review scheduling existed join the schedule.
+    const legacy = (JSON.parse(localStorage.getItem(LEGACY_MASTERED_KEY)) || []).filter(id => course.byId.has(id));
+    return Object.fromEntries(legacy.map(id => [progressKey(id, course.byId.get(id).side), { box: 0, due: Date.now() + DAY }]));
+  } catch { return {}; }
 }
 
-function saveMastered() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...mastered])); } catch { /* progress just won't persist */ }
+function saveProgress() {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress)); } catch { /* progress just won't persist */ }
 }
+
+const mastered = (l, side = l.side) => isMastered(progress, progressKey(l.id, side));
+const isDue = (l, side) => (progress[progressKey(l.id, side)]?.due ?? Infinity) <= Date.now();
 
 function make(tag, className, text) {
   const element = document.createElement(tag);
@@ -55,7 +67,9 @@ function button(text, onClick, className = 'button') {
 }
 
 const line = () => course.byId.get(state.lineId);
-const currentPly = () => state.mode === 'practice' ? state.practice.ply : state.ply;
+// Practice and Drill both play through a run of book moves against the coach.
+const practicing = () => state.mode !== 'learn';
+const currentPly = () => practicing() && state.practice ? state.practice.ply : state.ply;
 const position = () => line().positions[currentPly()];
 const pathAt = ply => ply ? line().paths[ply - 1] : '';
 const lineLabel = l => `${l.family}: ${l.name}`;
@@ -67,15 +81,21 @@ function clearTimer() {
   state.timer = null;
 }
 
-function selectLine(id, { ply = 0, mode = state.mode } = {}) {
+function selectLine(id, { ply = 0, mode = state.mode, side } = {}) {
+  if (mode === 'drill') return startDrill();
   clearTimer();
   state.lineId = id;
   state.mode = mode;
-  state.flipped = line().side === 'b';
   state.selected = -1;
   state.feedback = null;
-  if (mode === 'practice') startPractice();
-  else state.ply = ply;
+  state.drill = null;
+  if (mode === 'practice') {
+    startRun({ kind: 'line', lineId: id, side: side || line().side, start: 0, end: line().moves.length });
+  } else {
+    state.practice = null;
+    state.ply = ply;
+    state.flipped = line().side === 'b';
+  }
   render();
 }
 
@@ -100,26 +120,76 @@ function goToPath(path) {
 }
 
 function setMode(mode) {
-  if (mode === state.mode) return;
+  if (mode === state.mode && mode !== 'drill') return;
   selectLine(state.lineId, { mode, ply: 0 });
 }
 
 // ---------- Practice ----------
 
-function startPractice() {
-  state.practice = { ply: 0, mistakes: 0, hints: 0, hint: 0, done: false, streak: 0, best: 0 };
-  state.feedback = { kind: 'info', text: `You play ${SIDE[line().side]}. Find each book move. Wrong guesses and hints are counted.` };
+// A run plays one stretch of a line, from `start` to `end`, as one side: a
+// whole line in Practice or a drill review, or a few moves for a drill position.
+function startRun(item, streak = 0) {
+  state.lineId = item.lineId;
+  state.flipped = item.side === 'b';
+  state.selected = -1;
+  state.practice = { ...item, ply: item.start, mistakes: 0, hints: 0, hint: 0, done: false, streak, best: streak };
+  const yourMoves = Math.ceil((item.end - item.start) / 2);
+  state.feedback = item.kind === 'position'
+    ? { kind: 'info', text: `Find ${SIDE[item.side]}'s next ${yourMoves > 1 ? 'two moves' : 'move'} in this position. The highlighted squares show the last move played.` }
+    : { kind: 'info', text: `You play ${SIDE[item.side]}. Find each book move. Wrong guesses and hints are counted.` };
   queueReply();
 }
 
 function userColor() {
-  return line().side;
+  return state.practice.side;
+}
+
+// ---------- Drill ----------
+
+function startDrill() {
+  clearTimer();
+  state.mode = 'drill';
+  state.practice = null;
+  state.selected = -1;
+  state.feedback = null;
+  state.ply = 0;
+  state.flipped = false;
+  state.drill = { items: buildDrill(course, progress), index: -1, results: [], finished: false };
+  render();
+}
+
+function nextDrillItem() {
+  const d = state.drill;
+  const streak = state.practice?.streak || 0;
+  d.index++;
+  if (d.index < d.items.length) startRun(d.items[d.index], streak);
+  else finishDrill();
+  render();
+}
+
+function skipDrillItem() {
+  clearTimer();
+  state.drill.results.push({ ...state.drill.items[state.drill.index], clean: false });
+  state.practice.streak = 0;
+  nextDrillItem();
+}
+
+function finishDrill() {
+  const d = state.drill;
+  d.finished = true;
+  const clean = d.results.filter(r => r.clean).length;
+  if (clean === d.results.length) {
+    play('mastered', 150);
+    setTimeout(() => confettiFrom($('#board'), { count: 200, power: 1.2 }), 120);
+  } else {
+    play('done', 150);
+  }
 }
 
 function queueReply() {
   const p = state.practice;
   const l = line();
-  if (p.ply >= l.moves.length) return finishPractice();
+  if (p.ply >= p.end) return finishPractice();
   if (l.positions[p.ply].turn === userColor()) return;
   clearTimer();
   state.timer = setTimeout(() => {
@@ -130,7 +200,7 @@ function queueReply() {
     const note = course.noteFor(l.paths[p.ply - 1]);
     state.anim = motion(l.moves[p.ply - 1]);
     state.feedback = { kind: 'reply', move: l.moves[p.ply - 1], ply: p.ply, text: note?.text, previous };
-    if (p.ply >= l.moves.length) finishPractice();
+    if (p.ply >= p.end) finishPractice();
     render();
   }, REPLY_DELAY);
 }
@@ -139,14 +209,28 @@ function finishPractice() {
   const p = state.practice;
   p.done = true;
   const clean = p.mistakes === 0 && p.hints === 0;
-  const firstTime = clean && !mastered.has(state.lineId);
-  if (clean) { mastered.add(state.lineId); saveMastered(); }
-  play(clean ? 'mastered' : 'done', MOTION_MS + 450);
-  if (clean) setTimeout(() => confettiFrom($('#board'), { count: firstTime ? 220 : 140, power: 1.25 }), MOTION_MS + 400);
+  const l = line();
+  const key = progressKey(l.id, p.side);
+  const wholeLine = p.start === 0 && p.end === l.moves.length;
+  const firstTime = clean && wholeLine && !isMastered(progress, key);
+  if (wholeLine) {
+    progress = recordRun(progress, key, clean);
+    saveProgress();
+  }
+  if (state.drill) state.drill.results.push({ ...state.drill.items[state.drill.index], clean });
+  const celebrate = clean && wholeLine;
+  play(celebrate ? 'mastered' : 'done', MOTION_MS + 450);
+  if (celebrate) setTimeout(() => confettiFrom($('#board'), { count: firstTime ? 220 : 140, power: 1.25 }), MOTION_MS + 400);
   state.progressPop = firstTime;
   state.finalNote = state.feedback;
   const best = p.best > 1 ? ` Best streak: ${p.best} in a row.` : '';
-  state.feedback = { kind: clean ? 'mastered' : 'done', text: clean ? `Perfect run: no mistakes and no hints. This line is mastered.${best}` : `Line complete with ${p.mistakes} ${p.mistakes === 1 ? 'mistake' : 'mistakes'} and ${p.hints} ${p.hints === 1 ? 'hint' : 'hints'}.${best} Try again for a clean run to master it.` };
+  const counts = `${p.mistakes} ${p.mistakes === 1 ? 'mistake' : 'mistakes'} and ${p.hints} ${p.hints === 1 ? 'hint' : 'hints'}`;
+  const review = progress[key] ? ` Next review: ${whenDue(progress[key])}.` : '';
+  let text;
+  if (p.kind === 'position') text = `${clean ? 'Solved!' : `Solved with ${counts}.`} This position comes from ${lineLabel(l)}.`;
+  else if (clean) text = `Perfect run: no mistakes and no hints.${firstTime ? ' This line is mastered.' : ''}${best}${review}`;
+  else text = `Line complete with ${counts}.${best}${progress[key] ? ' It stays in your review queue until you play it cleanly.' : ' Try again for a clean run to master it.'}`;
+  state.feedback = { kind: celebrate ? 'mastered' : clean ? 'solved' : 'done', text };
 }
 
 function practiceMove(move) {
@@ -194,7 +278,7 @@ function hint() {
 
 function onSquare(square) {
   const pos = position();
-  if (state.mode === 'practice' && (state.practice.done || state.timer || pos.turn !== userColor())) return;
+  if (practicing() && (!state.practice || state.practice.done || state.timer || pos.turn !== userColor())) return;
   const piece = pos.board[square];
   if (state.selected >= 0) {
     const move = legalMoves(pos, state.selected).find(m => m.to === square && (!m.promotion || m.promotion === 'q'));
@@ -211,7 +295,7 @@ function onSquare(square) {
 }
 
 function playMove(move) {
-  if (state.mode === 'practice') return practiceMove(move);
+  if (practicing()) return practiceMove(move);
   const pos = position();
   const san = toSan(pos, move);
   const path = [pathAt(state.ply), san].filter(Boolean).join(' ');
@@ -241,8 +325,9 @@ function displayOrder() {
 function arrowsToDraw() {
   const ply = currentPly();
   const l = line();
-  if (state.mode === 'practice') {
+  if (practicing()) {
     const p = state.practice;
+    if (!p) return { arrows: [], marks: [] };
     if (p.hint === 2 && !p.done) { const m = l.moves[p.ply]; return { arrows: [[m.from, m.to, 'hint']], marks: [] }; }
     if (p.hint === 1 && !p.done) return { arrows: [], marks: [l.moves[p.ply].from] };
     if (!['good', 'reply'].includes(state.feedback?.kind)) return { arrows: [], marks: [] };
@@ -417,21 +502,34 @@ function renderStatus() {
   const l = line();
   $('#turn-dot').className = `player-dot ${pos.turn}`;
   const ended = ply >= l.moves.length;
-  if (state.mode === 'practice') {
+  const d = state.drill;
+  if (d && (d.index < 0 || d.finished)) {
+    $('#turn-title').textContent = d.finished ? 'Drill complete' : 'Daily drill';
+    $('#turn-subtitle').textContent = `${d.items.length} items · reviews and mixed positions`;
+  } else if (practicing()) {
     const p = state.practice;
-    $('#turn-title').textContent = p.done ? 'Line complete' : pos.turn === userColor() ? 'Your move' : `${SIDE[pos.turn]} is thinking…`;
-    $('#turn-subtitle').textContent = `Practice · ${l.name} · ${p.mistakes} ${p.mistakes === 1 ? 'mistake' : 'mistakes'} · ${p.hints} ${p.hints === 1 ? 'hint' : 'hints'}`;
+    const counts = `${p.mistakes} ${p.mistakes === 1 ? 'mistake' : 'mistakes'} · ${p.hints} ${p.hints === 1 ? 'hint' : 'hints'}`;
+    $('#turn-title').textContent = p.done ? (p.kind === 'position' ? 'Solved' : 'Line complete') : pos.turn === userColor() ? 'Your move' : `${SIDE[pos.turn]} is thinking…`;
+    if (d) {
+      const what = p.kind === 'review' ? `Review · ${l.name}` : p.done ? l.name : `Position · you play ${SIDE[p.side]}`;
+      $('#turn-subtitle').textContent = `Drill ${d.index + 1} of ${d.items.length} · ${what} · ${counts}`;
+    } else {
+      $('#turn-subtitle').textContent = `Practice as ${SIDE[p.side]} · ${l.name} · ${counts}`;
+    }
   } else {
     $('#turn-title').textContent = ended ? 'End of line' : `${SIDE[pos.turn]} to move`;
     $('#turn-subtitle').textContent = `${l.family} · ${l.name}`;
   }
   $('#ply-count').textContent = `MOVE ${Math.min(Math.floor(ply / 2) + 1, Math.ceil(l.moves.length / 2))}`;
-  $('#progress').textContent = `${mastered.size} / ${course.lines.length} MASTERED`;
+  const due = dueKeys(progress).length;
+  $('#progress').textContent = `${Object.keys(progress).length} MASTERED${due ? ` · ${due} DUE` : ''}`;
+  $('#drill-due').textContent = due || '';
+  $('#drill-due').hidden = !due;
   if (state.progressPop) $('#progress').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)', background: '#e2f0e6' }, { transform: 'scale(1)' }], { duration: 600, delay: MOTION_MS + 400, easing: 'cubic-bezier(.3,1.6,.5,1)' });
   state.progressPop = false;
   const streak = $('#streak');
   const p = state.practice;
-  const count = state.mode === 'practice' ? p.streak : 0;
+  const count = practicing() && p ? p.streak : 0;
   streak.hidden = count < 2;
   if (count >= 2 && streak.dataset.count !== String(count)) {
     streak.textContent = `🔥 ${count} in a row`;
@@ -447,10 +545,11 @@ function renderControls() {
   $('.controls').hidden = !learn;
   $('#first').disabled = $('#prev').disabled = !learn || ply === 0;
   $('#next').disabled = $('#last').disabled = !learn || ply >= end;
-  $('#mode-learn').classList.toggle('active', learn);
-  $('#mode-practice').classList.toggle('active', !learn);
-  $('#mode-learn').setAttribute('aria-selected', learn);
-  $('#mode-practice').setAttribute('aria-selected', !learn);
+  for (const mode of ['learn', 'practice', 'drill']) {
+    $(`#mode-${mode}`).classList.toggle('active', state.mode === mode);
+    $(`#mode-${mode}`).setAttribute('aria-selected', String(state.mode === mode));
+  }
+  $('.line-picker').hidden = state.mode === 'drill';
   $('#line-select').value = state.lineId;
 }
 
@@ -472,10 +571,24 @@ function renderCoach() {
     }
     return;
   }
+  const d = state.drill;
+  if (d && d.index < 0) return renderDrillIntro(coach);
+  if (d?.finished) return renderDrillSummary(coach);
   const p = state.practice;
   const fb = state.feedback;
   const userTurn = !p.done && position().turn === userColor();
-  coach.append(make('p', 'eyebrow', p.done ? 'RESULT' : userTurn ? `YOUR MOVE · ${SIDE[userColor()].toUpperCase()}'S MOVE ${Math.floor(p.ply / 2) + 1}` : 'OPPONENT'));
+  if (!d) {
+    const sides = make('div', 'side-toggle');
+    sides.append(make('span', 'eyebrow', 'PLAY AS'));
+    for (const side of ['w', 'b']) {
+      const choice = button(SIDE[side], () => selectLine(state.lineId, { mode: 'practice', side }), `side-choice${p.side === side ? ' active' : ''}`);
+      choice.setAttribute('aria-pressed', String(p.side === side));
+      sides.append(choice);
+    }
+    coach.append(sides);
+  }
+  const where = d ? `${p.kind === 'review' ? 'REVIEW' : 'POSITION'} ${d.index + 1} OF ${d.items.length} · ` : '';
+  coach.append(make('p', 'eyebrow', where + (p.done ? 'RESULT' : userTurn ? `YOUR MOVE · ${SIDE[userColor()].toUpperCase()}'S MOVE ${Math.floor(p.ply / 2) + 1}` : 'OPPONENT')));
   if (fb?.previous) {
     const yours = make('div', 'your-move');
     yours.append(make('strong', '', `✓ ${moveNumber(fb.previous.ply, fb.previous.move.san)}`), make('span', '', fb.previous.text || ''));
@@ -491,24 +604,64 @@ function renderCoach() {
       if (state.finalNote.text) coach.append(make('p', 'coach-text', state.finalNote.text));
     }
     coach.append(make('p', `feedback ${fb.kind}`, fb.text));
-    if (fb.switchTo) coach.append(button(`Study ${course.byId.get(fb.switchTo).name} instead`, () => selectLine(fb.switchTo, { mode: 'learn', ply: p.ply + 1 }), 'button subtle-link'));
+    if (fb.switchTo && !d) coach.append(button(`Study ${course.byId.get(fb.switchTo).name} instead`, () => selectLine(fb.switchTo, { mode: 'learn', ply: p.ply + 1 }), 'button subtle-link'));
   }
   const actions = make('div', 'coach-actions');
-  if (p.done) {
-    actions.append(button('Practice again', () => selectLine(state.lineId, { mode: 'practice' }), 'button primary'));
+  const hintButton = button(p.hint === 0 ? 'Hint' : p.hint === 1 ? 'Show the move' : 'Hint shown', hint);
+  hintButton.disabled = !userTurn || p.hint === 2;
+  if (d) {
+    const last = d.index === d.items.length - 1;
+    if (p.done) actions.append(button(last ? 'See results' : 'Next →', nextDrillItem, 'button primary'));
+    else actions.append(hintButton, button('Skip', skipDrillItem));
+  } else if (p.done) {
+    actions.append(button('Practice again', () => selectLine(state.lineId, { mode: 'practice', side: p.side }), 'button primary'));
     const next = nextLine();
     if (next) actions.append(button(`Next: ${next.name}`, () => selectLine(next.id, { mode: 'practice' })));
   } else {
-    const hintButton = button(p.hint === 0 ? 'Hint' : p.hint === 1 ? 'Show the move' : 'Hint shown', hint);
-    hintButton.disabled = !userTurn || p.hint === 2;
-    actions.append(hintButton, button('Restart', () => selectLine(state.lineId, { mode: 'practice' })));
+    actions.append(hintButton, button('Restart', () => selectLine(state.lineId, { mode: 'practice', side: p.side })));
   }
   coach.append(actions);
 }
 
 function nextLine() {
   const rest = course.lines.filter(l => l.id !== state.lineId);
-  return rest.find(l => !mastered.has(l.id)) || null;
+  return rest.find(l => !mastered(l)) || null;
+}
+
+function renderDrillIntro(coach) {
+  const d = state.drill;
+  const reviews = d.items.filter(i => i.kind === 'review').length;
+  coach.append(make('p', 'eyebrow', 'DRILL'));
+  coach.append(make('h2', 'coach-title', 'Daily drill'));
+  const parts = [];
+  if (reviews) parts.push(`${reviews} ${reviews === 1 ? 'line is' : 'lines are'} due for review. Play ${reviews === 1 ? 'it' : 'each one'} from the start.`);
+  parts.push(`${d.items.length - reviews} quick positions come from the middle of the opening: find your side's next two moves.`);
+  if (!Object.keys(progress).length) parts.push('Master lines in Practice to add them to your review schedule and unlock positions from Black\'s side.');
+  coach.append(make('p', 'coach-text', parts.join(' ')));
+  const actions = make('div', 'coach-actions');
+  actions.append(button('Start drill', nextDrillItem, 'button primary'));
+  coach.append(actions);
+}
+
+function renderDrillSummary(coach) {
+  const d = state.drill;
+  const clean = d.results.filter(r => r.clean).length;
+  coach.append(make('p', 'eyebrow', 'DRILL COMPLETE'));
+  coach.append(make('h2', 'coach-title', `${clean} / ${d.results.length} clean`));
+  coach.append(make('p', 'coach-text', clean === d.results.length ? 'A perfect drill. Every move found without a hint.' : 'Lines with mistakes stay due for review. Choose any result to study that spot in Learn mode.'));
+  const list = make('ul', 'drill-results');
+  for (const r of d.results) {
+    const l = course.byId.get(r.lineId);
+    const item = make('li', r.clean ? 'clean' : 'missed');
+    const open = button('', () => selectLine(r.lineId, { mode: 'learn', ply: r.start }));
+    open.append(make('span', 'mark', r.clean ? '✓' : '✗'), make('span', '', `${r.kind === 'review' ? 'Review' : 'Position'}: ${l.name}`), make('small', '', SIDE[r.side]));
+    item.append(open);
+    list.append(item);
+  }
+  coach.append(list);
+  const actions = make('div', 'coach-actions');
+  actions.append(button('New drill', startDrill, 'button primary'), button('Back to learning', () => setMode('learn')));
+  coach.append(actions);
 }
 
 function renderBranches() {
@@ -552,6 +705,8 @@ function renderBranches() {
 }
 
 function renderMoves() {
+  const d = state.drill;
+  $('.moves-panel').hidden = Boolean(d && (d.index < 0 || d.finished));
   const l = line();
   const list = $('#move-list');
   list.replaceChildren();
@@ -561,14 +716,14 @@ function renderMoves() {
     row.append(make('span', 'move-no', `${i / 2 + 1}.`));
     for (const j of [i, i + 1]) {
       if (j >= l.moves.length) break;
-      const hidden = state.mode === 'practice' && j >= ply;
+      const hidden = practicing() && j >= ply;
       const cell = button(hidden ? '…' : l.moves[j].san, () => goTo(j + 1), `move${j + 1 === ply ? ' current' : ''}`);
-      cell.disabled = state.mode === 'practice';
+      cell.disabled = practicing();
       row.append(cell);
     }
     list.append(row);
   }
-  $('#line-family').textContent = `${l.moves.length} PLIES`;
+  $('#line-family').textContent = d ? '' : `${l.moves.length} PLIES`;
 }
 
 function renderCards() {
@@ -582,14 +737,21 @@ function renderCards() {
       const card = make('article', `line-card${l.id === state.lineId ? ' active' : ''}`);
       const title = make('div', 'line-card-title');
       title.append(make('h3', '', l.name));
-      if (mastered.has(l.id)) title.append(make('span', 'badge', '✓ Mastered'));
+      const badges = make('span', 'badges');
+      for (const side of ['w', 'b']) {
+        if (isDue(l, side)) badges.append(make('span', 'badge due', `Review ${SIDE[side]}`));
+        else if (mastered(l, side)) badges.append(make('span', 'badge', `✓ ${SIDE[side]}`));
+      }
+      title.append(badges);
       card.append(title, make('p', 'muted small', l.summary));
       const ideas = make('ul', 'ideas');
       for (const idea of l.ideas) ideas.append(make('li', '', idea));
       card.append(ideas);
       const actions = make('div', 'card-actions');
       actions.append(button('Learn', () => { selectLine(l.id, { mode: 'learn' }); scrollToBoard(); }, 'button small'));
-      actions.append(button(`Practice as ${SIDE[l.side]}`, () => { selectLine(l.id, { mode: 'practice' }); scrollToBoard(); }, 'button small primary'));
+      for (const side of [l.side, l.side === 'w' ? 'b' : 'w']) {
+        actions.append(button(`Practice as ${SIDE[side]}`, () => { selectLine(l.id, { mode: 'practice', side }); scrollToBoard(); }, `button small${side === l.side ? ' primary' : ''}`));
+      }
       card.append(actions);
       group.append(card);
     }
@@ -622,7 +784,7 @@ function renderTree() {
     }
     if (!current.children.length) {
       const l = course.byId.get(current.lines[0]);
-      const tag = make('span', `tree-tag${mastered.has(l.id) ? ' done' : ''}`, `${mastered.has(l.id) ? '✓ ' : ''}${l.name}`);
+      const tag = make('span', `tree-tag${mastered(l) ? ' done' : ''}`, `${mastered(l) ? '✓ ' : ''}${l.name}`);
       moves.append(tag);
     }
     wrap.append(moves);
@@ -729,6 +891,7 @@ $('#theme-dialog').addEventListener('click', event => { if (event.target === eve
 $('#flip').addEventListener('click', () => { state.flipped = !state.flipped; render(); });
 $('#mode-learn').addEventListener('click', () => setMode('learn'));
 $('#mode-practice').addEventListener('click', () => setMode('practice'));
+$('#mode-drill').addEventListener('click', () => setMode('drill'));
 
 document.addEventListener('keydown', event => {
   if (event.target.closest('select, input, textarea, dialog')) return;
