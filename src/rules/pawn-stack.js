@@ -1,4 +1,5 @@
 import { AROUND, ORTHOGONAL, offset } from '../board.js';
+import { owenCombinationActions } from './powers.js';
 
 export function stackAttacks(state, from) {
   // Two pawns travel together with king-like geometry, but no royal status.
@@ -19,11 +20,11 @@ export function stackMoves(state, from) {
 
 export function combinationActions(state, from) {
   if (!state.rules.stack.enabled) return [];
+  if (state.chaos) return owenCombinationActions(state, from);
   const piece = state.board[from];
   if (piece?.type !== 'pawn' || !piece.revealed) return [];
   if (piece.count === 1) {
-    // Owen's Rules always lets you stack with the pawn in front of you, too.
-    const directions = state.rules.stack.anyAdjacent || state.rules.chaos.enabled ? AROUND : [[0, -1], [0, 1]];
+    const directions = state.rules.stack.anyAdjacent ? AROUND : [[0, -1], [0, 1]];
     return directions.flatMap(([dr, dc]) => {
       const to = offset(from, dr, dc);
       const partner = state.board[to];

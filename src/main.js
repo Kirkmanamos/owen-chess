@@ -2,6 +2,8 @@ import { createGame, getLegalActions, applyAction, publicView } from './engine.j
 import { squareName, offset, rowOf, colOf } from './board.js';
 import { hasBonusReveal } from './rules/turn.js';
 import { TOYS_PER_TOKEN } from './rules/chaos.js';
+import { POWERS } from './rules/powers.js';
+import { attackedSquares } from './rules/movement.js';
 
 const $ = selector => document.querySelector(selector);
 const SYMBOLS = { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' };
@@ -24,6 +26,7 @@ let animateAction = null; // The action whose arrival animates on the next rende
 let prevChaos = null; // Last rendered goal state, to animate what changed.
 let toastTimer = null;
 let prevToys = null; // Toy Box sizes at the last render, so new toys pop in.
+let powerPreview = null; // { square, until }: sparkle where a brand-new power can reach.
 const CAPTURE_SPRITES = {
   pawn: ['CHOMP!', '#c0602d'], knight: ['NEIGH!', '#7b4fb6'], bishop: ['ZAP!', '#2f7fb8'], rook: ['CRASH!', '#a0442d'],
   queen: ['KAPOW!', '#b2366b'], king: ['BONK!', '#8a6a1f'], stack: ['SQUISH!', '#3e7d4f']
@@ -50,9 +53,14 @@ function button(text, onClick, className = 'button primary wide') {
   return element;
 }
 
+// Swap and zap pick a square on the board; adopting a toy and sneezing are buttons.
 function actionMode(action) {
-  return ['stack', 'unstack', 'reveal'].includes(action.kind) ? action.kind : 'move';
+  if (['adopt', 'sneeze'].includes(action.kind)) return 'button';
+  return ['stack', 'unstack', 'reveal', 'swap', 'zap'].includes(action.kind) ? action.kind : 'move';
 }
+
+const partGlyphs = parts => parts.map(part => SYMBOLS[part.type]).join(' + ');
+const stackName = piece => piece.parts ? `${POWERS[piece.power].icon} ${POWERS[piece.power].name} stack` : piece.count === 2 ? 'Pawn Stack' : owenWords(TITLES[piece.type]);
 
 function openingHelp(rules) {
   if (rules.exposure.mode === 'right-empty') return 'Slide one square right into an empty space and flip there.';
@@ -112,12 +120,21 @@ function perform(action) {
   try {
     const player = game.currentPlayer;
     const capturedBefore = game.captured.length;
+    const boardBefore = game.board;
     game = applyAction(game, action);
     pending = null;
-    animateAction = { ...action, captured: game.captured.length > capturedBefore, victims: game.captured.slice(capturedBefore) };
+    animateAction = { ...action, captured: game.captured.length > capturedBefore, victims: game.captured.slice(capturedBefore), pushes: sneezePushes(action, boardBefore) };
     if (!action.kind.startsWith('goal-')) lastAction = action;
     selected = null;
     mode = 'move';
+    // A new power is shown off at once: sparkle its reach, and keep it selected
+    // when it is still your turn so its moves are highlighted right away.
+    const power = game.chaos?.events.find(e => e.type === 'power');
+    if (power) {
+      powerPreview = { square: power.square, until: Date.now() + 2600 };
+      setTimeout(() => { if (powerPreview && Date.now() >= powerPreview.until) { powerPreview = null; render(); } }, 2700);
+      if (game.currentPlayer === player && !game.result) selected = power.square;
+    }
     render();
     if (!game.result && game.currentPlayer !== player && $('#privacy-toggle').checked) showHandoff();
     else $('#board').querySelector(`[data-square="${action.step ?? action.to ?? action.from ?? focusSquare}"]`)?.focus();
@@ -145,10 +162,23 @@ function clickSquare(square) {
   }
 }
 
+// Which enemies a sneeze blew away, as [from, to] pairs, read off the old board.
+function sneezePushes(action, board) {
+  if (action.kind !== 'sneeze') return [];
+  const owner = board[action.from].owner;
+  return [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]].flatMap(([dr, dc]) => {
+    const mid = offset(action.from, dr, dc);
+    const out = mid === null ? null : offset(mid, dr, dc);
+    return out !== null && board[mid] && board[mid].owner !== owner && !board[out] ? [[mid, out]] : [];
+  });
+}
+
 // Where a tile that just landed on `square` came from, if it traveled.
 function arrivalOrigin(action, square) {
   if (!action) return null;
   if (action.kind === 'unstack') return square === action.to ? action.from : null;
+  if (action.kind === 'swap') return square === action.to ? action.from : square === action.from ? action.to : null;
+  if (action.kind === 'sneeze') return action.pushes.find(([, out]) => out === square)?.[0] ?? null;
   return ['move', 'reveal', 'stack'].includes(action.kind) && square === (action.step ?? action.to) ? action.from : null;
 }
 
@@ -162,7 +192,7 @@ function renderBoard(view, actions) {
     cell.dataset.square = square;
     cell.tabIndex = square === focusSquare ? 0 : -1;
     cell.setAttribute('aria-pressed', String(selected === square));
-    let label = `${squareName(square)}, ${piece ? `Player ${piece.owner} ${piece.revealed ? piece.count === 2 ? 'pawn stack' : piece.type : 'hidden tile'}` : 'empty'}`;
+    let label = `${squareName(square)}, ${piece ? `Player ${piece.owner} ${piece.revealed ? piece.count >= 2 ? `${stackName(piece)} (${piece.parts ? piece.parts.map(part => owenWords(part.type)).join(', ') : 'two pawns'})` : owenWords(piece.type) : 'hidden tile'}` : 'empty'}`;
     const revealable = !pending && actions.some(a => a.kind === 'reveal' && a.from === square);
     if (revealable) { cell.classList.add('revealable'); label += ', can reveal'; }
     const targets = visibleActions(actions).filter(a => destination(a) === square);
@@ -176,20 +206,27 @@ function renderBoard(view, actions) {
       cell.classList.add('stack-partner');
       label += ', click to stack';
     }
+    if (powerPreview && Date.now() < powerPreview.until && view.board[powerPreview.square] && attackedSquares(game, powerPreview.square).includes(square)) cell.classList.add('power-preview');
     if (lastAction && [lastAction.from, lastAction.to, lastAction.step, lastAction.scout].includes(square)) cell.classList.add('last-action');
     if (pending) label += ', action preview';
     if (piece) {
-      const tile = make('span', `tile p${piece.owner}${piece.revealed ? '' : ' hidden'}${piece.count === 2 ? ' stack' : ''}`);
+      const tile = make('span', `tile p${piece.owner}${piece.revealed ? '' : ' hidden'}${piece.count >= 2 ? ' stack' : ''}${piece.count === 3 ? ' tall' : ''}`);
       tile.setAttribute('aria-hidden', 'true');
       tile.append(make('span', piece.revealed ? `piece-symbol${horn(piece.type)}` : 'seal', piece.revealed ? SYMBOLS[piece.type] : '✦'));
-      if (piece.count === 2) tile.append(make('span', 'stack-count', '×2'));
+      if (piece.parts) {
+        // The bottom piece is the big glyph; the others ride along as chips.
+        const riders = make('span', 'stack-parts');
+        for (const part of piece.parts.slice(1)) riders.append(make('span', `part p${part.color}${horn(part.type)}`, SYMBOLS[part.type]));
+        tile.append(riders, make('span', 'power-badge', POWERS[piece.power].icon));
+        if (animateAction && view.chaos?.events.some(e => e.type === 'power' && e.square === square)) tile.classList.add('power-up');
+      } else if (piece.count === 2) tile.append(make('span', 'stack-count', '×2'));
       if (piece.type === 'king' && view.check[piece.owner]) { cell.classList.add('in-check'); label += ', in check'; }
       const origin = pending ? null : arrivalOrigin(animateAction, square);
       if (origin !== null) {
         tile.style.setProperty('--dx', colOf(origin) - colOf(square));
         tile.style.setProperty('--dy', rowOf(origin) - rowOf(square));
-        const attacker = piece.count === 2 ? 'stack' : piece.type;
-        tile.classList.add(animateAction.kind === 'reveal' ? 'slide-flip' : animateAction.captured ? `capture-${attacker}` : 'slide-in');
+        const attacker = piece.count >= 2 ? 'stack' : piece.type;
+        tile.classList.add(animateAction.kind === 'reveal' ? 'slide-flip' : animateAction.captured ? `capture-${attacker}` : animateAction.kind === 'stack' ? 'stack-hop' : 'slide-in');
         cell.classList.add('arriving');
       } else if (!pending && piece.revealed && ((animateAction?.kind === 'challenge' && animateAction.to === square) || animateAction?.scout === square)) tile.classList.add('just-revealed');
       cell.append(tile);
@@ -244,11 +281,11 @@ function renderSelection(view, actions) {
     container.append(make('h2', 'selection-title', view.response ? 'Protect your king.' : view.bonusRevealPending ? 'Optional bonus reveal.' : 'The board is waiting.'));
     hint.textContent = view.preparation ? 'No safe escape exists. You still get one preparation action before checkmate is evaluated.' : view.bonusRevealPending ? 'Reveal one outlined hidden tile for free, or skip to end your turn. The bonus tile cannot also move this turn, except for an immediate king response.' : `Choose an outlined hidden tile. ${openingHelp(view.rules)} Revealed pieces use their normal moves.`;
   } else {
-    const title = make('h2', 'selection-title', piece.revealed ? piece.count === 2 ? 'Pawn Stack' : owenWords(TITLES[piece.type]) : 'A hidden possibility.');
+    const title = make('h2', 'selection-title', piece.revealed ? stackName(piece) : 'A hidden possibility.');
     title.append(make('span', 'selection-coordinate', squareName(selected)));
     container.append(title);
     const ownActions = actions.filter(a => a.from === selected);
-    const availableModes = [...new Set(ownActions.map(actionMode))];
+    const availableModes = [...new Set(ownActions.map(actionMode))].filter(name => name !== 'button');
     if (!availableModes.includes(mode)) mode = availableModes[0] || 'move';
     if (!piece.revealed) {
       const reveals = ownActions.filter(a => a.kind === 'reveal');
@@ -258,7 +295,7 @@ function renderSelection(view, actions) {
       } else hint.textContent = view.check[view.currentPlayer] ? 'Your king is in check. Choose an action that makes it safe.' : `No safe reveal destination is available for this tile. ${openingHelp(view.rules)}`;
     } else {
       for (const name of availableModes) {
-        const labels = { move: 'Move / attack', stack: 'Stack', unstack: 'Unstack' };
+        const labels = { move: 'Move / attack', stack: 'Stack', unstack: piece.parts ? 'Pop off' : 'Unstack', swap: '🔄 Swap', zap: '🎯 Zap' };
         const control = button(labels[name], () => { mode = name; render(); }, `mode-button${name === mode ? ' active' : ''}`);
         control.setAttribute('aria-pressed', String(name === mode));
         modes.append(control);
@@ -267,6 +304,10 @@ function renderSelection(view, actions) {
       if (mode === 'move' && ownActions.some(a => a.kind === 'challenge')) hint.textContent += ' Attacking a hidden tile reveals it; your piece stays put.';
       if (mode === 'stack' && view.rules.stack.stackAndStep) hint.textContent += ' After choosing your partner, you can add one noncapturing step for free.';
       if (piece.count === 2 && view.rules.stack.scouting) hint.textContent += ' After a noncapturing move, you may scout one adjacent hidden enemy for free.';
+      if (view.chaos) hint.textContent = owenHint(view, piece, ownActions);
+      for (const action of ownActions.filter(a => actionMode(a) === 'button')) {
+        buttons.append(button(action.kind === 'sneeze' ? '🤧 Achoo! Sneeze' : `🧸 Stack a ${owenWords(action.toy)} from your Toy Box`, () => perform(action), 'button owen-button wide'));
+      }
       if (view.bonusRevealPending) hint.textContent = 'Only one hidden tile can slide and reveal during this bonus. Choose an outlined hidden tile, or skip to end your turn.';
     }
   }
@@ -289,7 +330,22 @@ function renderArmies(view) {
   }
 }
 
+// Owen's Rules explains stacks and powers in plain words.
+function owenHint(view, piece, ownActions) {
+  if (!ownActions.length) return 'Nothing to do from here right now. A Sticky enemy might be holding it. Choose another piece.';
+  const free = view.chaos.freeStack ? ' Your first stack this turn is free!' : '';
+  if (mode === 'stack') return `Choose a piece marked + (up to 2 squares away). They stack up, up to 3 high, and get a power.${free}`;
+  if (mode === 'unstack') return 'Choose an empty square. Your top piece pops off onto it. Toys stay stuck on.';
+  if (mode === 'swap') return 'Choose any of your pieces to trade places with.';
+  if (mode === 'zap') return 'Choose an enemy 2 squares away to zap. Your stack stays put.';
+  const power = piece.parts && POWERS[piece.power];
+  const moves = piece.parts ? `Moves like ${[...new Set(piece.parts.map(part => owenWords(TITLES[part.type]).toLowerCase()))].join(' + ')}${piece.parts.some(part => part.type === 'pawn') ? ' (a pawn steps 1 square any way)' : ''}. ${power.icon} ${power.name}: ${power.text}` : MOVEMENT_HELP[piece.type];
+  const stacking = ownActions.some(a => a.kind === 'stack') ? ` Click a piece marked + to stack with it.${free}` : '';
+  return `${owenWords(moves)}${stacking}`;
+}
+
 const OWEN_TOASTS = {
+  power: event => [POWERS[event.power].icon, `${event.isNew ? 'New power' : 'Power'}: ${POWERS[event.power].name}!`],
   crown: event => ['👑', `Crown for Player ${event.player}!`],
   'nuh-uh': () => ['NUH-UH!', 'Owen changed his mind.'],
   bored: () => ['🥱', 'Owen got bored.'],
@@ -303,8 +359,9 @@ function showOwenToast(chaos) {
   if (!event) return;
   const toast = $('#owen-toast');
   const [mark, headline] = event.final ? ['👑', `Player ${event.player} wins Owen’s game!`] : OWEN_TOASTS[event.type](event);
-  const detail = event.final ? `${chaos.crownsToWin} crowns. Owen is very proud.` : event.type === 'lock' ? `${chaos.goal.title} stays put.` : `New goal: ${chaos.goal.icon} ${chaos.goal.title}`;
-  const card = make('div', `owen-toast-card kind-${event.type}${event.final ? ' final' : ''}`);
+  const detail = event.final ? `${chaos.crownsToWin} crowns. Owen is very proud.` : event.type === 'power' ? `${partGlyphs(event.parts)} · ${POWERS[event.power].text}` : event.type === 'lock' ? `${chaos.goal.title} stays put.` : `New goal: ${chaos.goal.icon} ${chaos.goal.title}`;
+  const card = make('div', `owen-toast-card kind-${event.type}${event.final ? ' final' : ''}${event.isNew ? ' new' : ''}`);
+  if (event.type === 'power' && event.isNew) card.append(make('span', 'toast-eyebrow', '✨ OWEN INVENTED A NEW POWER ✨'));
   card.append(make('span', event.type === 'nuh-uh' ? 'toast-stamp' : 'toast-mark', mark), make('strong', '', headline), make('span', 'toast-detail', detail));
   if (event.robbed?.length) card.append(make('span', 'toast-token', `🙅 Not Fair token for ${event.robbed.map(p => `Player ${p}`).join(' & ')}`));
   toast.replaceChildren(card);
@@ -353,10 +410,11 @@ function sprite(className, text, spot, color) {
 // Victims pop out, then fly into the capturer's Toy Box in Owen's Rules.
 function playCaptureSprites(action, view) {
   const landing = action.step ?? action.to;
-  const piece = view.board[landing];
+  const piece = view.board[action.kind === 'zap' ? action.from : landing];
   if (!piece) return;
-  const kind = piece.count === 2 ? 'stack' : piece.type;
-  const [word, color] = CAPTURE_SPRITES[kind];
+  const kind = piece.count >= 2 ? 'stack' : piece.type;
+  const [word, color] = action.kind === 'zap' ? ['PEW!', '#d0342c'] : CAPTURE_SPRITES[kind];
+  if (action.kind === 'zap') laser(action.from, action.to);
   const spot = frameSpot(landing);
   sprite('burst', '', spot, color);
   sprite('burst-word', word, spot, color);
@@ -390,32 +448,97 @@ function playCaptureSprites(action, view) {
   });
 }
 
+function laser(from, to) {
+  const a = frameSpot(from);
+  const b = frameSpot(to);
+  const beam = sprite('laser', '', a);
+  beam.style.width = `${Math.hypot(b.x - a.x, b.y - a.y)}px`;
+  beam.style.transform = `translateY(-50%) rotate(${Math.atan2(b.y - a.y, b.x - a.x)}rad)`;
+}
+
+// Non-capture power moments: a word burst where it happened, plus a toy flying
+// out of the Toy Box when one is stacked on.
+function playPowerSprites(action, view) {
+  const words = { sneeze: ['ACHOO!', '#4a8f3c', action.from], swap: ['SWAP!', '#2f7fb8', action.to], stack: ['TA-DA!', '#c29547', action.step ?? action.to], adopt: ['TA-DA!', '#c29547', action.from] };
+  const [word, color, square] = words[action.kind] ?? [];
+  if (!word) return;
+  const spot = frameSpot(square);
+  sprite('burst', '', spot, color);
+  sprite('burst-word', word, spot, color);
+  if (action.kind === 'swap') { const other = frameSpot(action.from); sprite('burst', '', other, color); sprite('burst-word', word, other, color); }
+  if (action.kind !== 'adopt' || reducedMotion()) return;
+  const start = document.querySelector(`.toy-row.p${view.board[action.from].owner} .toy-shelf`)?.getBoundingClientRect();
+  const frame = $('.board-frame').getBoundingClientRect();
+  if (!start) return;
+  const toy = view.board[action.from].parts.at(-1);
+  const ghost = sprite(`ghost flying p${toy.color}`, '', { x: start.left - frame.left + start.width / 2, y: start.top - frame.top + start.height / 2, size: spot.size });
+  ghost.append(make('span', horn(toy.type).trim(), SYMBOLS[toy.type]));
+  ghost.animate([
+    { transform: 'translate(-50%, -50%) scale(.5)', opacity: 0 },
+    { transform: `translate(calc(-50% + ${(spot.x - (start.left - frame.left + start.width / 2)) / 2}px), calc(-50% + ${(spot.y - (start.top - frame.top + start.height / 2)) / 2 - 80}px)) scale(1.2) rotate(-180deg)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(calc(-50% + ${spot.x - (start.left - frame.left + start.width / 2)}px), calc(-50% + ${spot.y - (start.top - frame.top + start.height / 2)}px)) scale(.8) rotate(-360deg)`, opacity: 0 }
+  ], { duration: 900, easing: 'cubic-bezier(.4,0,.3,1)', fill: 'both' }).finished.then(() => ghost.remove(), () => {});
+}
+
 function toyBox(view) {
   const box = make('div', 'toy-box');
   const heading = make('div', 'toy-heading');
-  heading.append(make('span', '', '🧸 Toy Box'), make('span', 'micro-label', `BIG CATCH = 🍬 GO AGAIN · ${TOYS_PER_TOKEN} TOYS = 🙅`));
+  heading.append(make('span', '', '🧸 Toy Box'), make('span', 'micro-label', `STACK TOYS ON YOUR PIECES · BIG CATCH = 🍬 · ${TOYS_PER_TOKEN} = 🙅`));
   box.append(heading);
   const sizes = {};
   for (const player of [1, 2]) {
-    const toys = view.captured.filter(p => p.owner !== player).flatMap(p => Array(p.count).fill(p));
+    const toys = view.chaos.toys[player];
+    const collected = view.captured.filter(p => p.owner !== player).reduce((total, p) => total + p.count, 0);
     sizes[player] = toys.length;
     const row = make('div', `toy-row p${player}`);
     row.append(make('span', `player-dot p${player}`));
     const shelf = make('span', 'toy-shelf');
     toys.forEach((toy, i) => {
       const fresh = prevToys && i >= prevToys[player];
-      const element = make('span', `toy p${toy.owner}${fresh ? ' arrive' : ''}`);
+      const element = make('span', `toy p${toy.color}${fresh ? ' arrive' : ''}`);
       element.append(make('span', horn(toy.type).trim(), SYMBOLS[toy.type]));
       if (fresh && !reducedMotion()) element.style.animationDelay = `${1.2 + (i - prevToys[player]) * 0.12}s`;
       shelf.append(element);
     });
     if (!toys.length) shelf.append(make('span', 'toy-empty', 'empty'));
-    row.append(shelf, make('span', 'toy-next', `${toys.length % TOYS_PER_TOKEN}/${TOYS_PER_TOKEN}`));
-    row.setAttribute('aria-label', `Player ${player} Toy Box: ${toys.length} captured, ${toys.length % TOYS_PER_TOKEN} of ${TOYS_PER_TOKEN} toward a Not Fair token`);
+    row.append(shelf, make('span', 'toy-next', `${collected % TOYS_PER_TOKEN}/${TOYS_PER_TOKEN}`));
+    row.setAttribute('aria-label', `Player ${player} Toy Box: ${toys.length} toys, ${collected % TOYS_PER_TOKEN} of ${TOYS_PER_TOKEN} toward a Not Fair token`);
     box.append(row);
   }
   prevToys = sizes;
   return box;
+}
+
+// Every recipe anyone has discovered, for both players to see.
+function recipeBook(view) {
+  const book = make('div', 'recipe-book');
+  const heading = make('div', 'toy-heading');
+  heading.append(make('span', '', '📖 Recipe Book'), make('span', 'micro-label', 'NEW MIX = NEW POWER · 🧸 = WILD'));
+  book.append(heading);
+  const fresh = view.chaos.events.find(e => e.type === 'power' && e.isNew);
+  const recipes = view.chaos.recipes.filter(r => !POWERS[r.power].triple);
+  if (!recipes.length) book.append(make('p', 'owen-note', 'Stack any two of your pieces (not the king) to invent the first power!'));
+  const list = make('div', 'recipe-list');
+  for (const recipe of [...recipes].reverse()) {
+    const types = recipe.key.replace('*', '').split('+');
+    const power = POWERS[recipe.power];
+    const row = make('div', `recipe${fresh && fresh.power === recipe.power && recipe.key === fresh.key ? ' fresh' : ''}`);
+    row.append(make('span', 'recipe-parts', `${types.map(type => SYMBOLS[type]).join('')}${recipe.key.endsWith('*') ? ' 🧸' : ''}`), make('span', 'recipe-power', `${power.icon} ${power.name}`));
+    row.title = power.text;
+    row.setAttribute('aria-label', `${types.map(owenWords).join(' and ')}${recipe.key.endsWith('*') ? ' with a toy' : ''}: ${power.name}. ${power.text}`);
+    list.append(row);
+  }
+  if (recipes.length) book.append(list);
+  const triples = make('div', 'triples');
+  triples.append(make('span', 'micro-label', 'THREE OF A KIND'));
+  for (const [id, power] of Object.entries(POWERS).filter(([, p]) => p.triple)) {
+    const found = view.chaos.recipes.some(r => r.power === id);
+    const chip = make('span', `triple${found ? ' found' : ''}`, found ? power.icon : '❔');
+    chip.title = found ? `${power.name}: ${power.text}` : `Three ${owenWords(power.triple)}s: a secret super power`;
+    triples.append(chip);
+  }
+  book.append(triples);
+  return book;
 }
 
 function crownSlots(chaos, before, player) {
@@ -469,7 +592,7 @@ function renderOwen(view, actions) {
     scores.append(row);
   }
   const [moodClass, moodText] = owenMood(chaos);
-  panel.append(heading, card, scores, make('p', `owen-mood ${moodClass}`, moodText), toyBox(view));
+  panel.append(heading, card, scores, make('p', `owen-mood ${moodClass}`, moodText), toyBox(view), recipeBook(view));
 
   const spend = actions.filter(a => a.kind.startsWith('goal-'));
   if (spend.length) {
@@ -503,6 +626,7 @@ function render() {
   renderOwen(view, actions);
   if (view.chaos?.events.length && animateAction) showOwenToast(view.chaos);
   if (animateAction?.captured && !pending) playCaptureSprites(animateAction, view);
+  else if (animateAction && !pending) playPowerSprites(animateAction, view);
   animateAction = null;
   $('#history-count').textContent = `${view.actionNumber} ACTION${view.actionNumber === 1 ? '' : 'S'}`;
   const history = $('#history'); history.replaceChildren();
@@ -549,7 +673,7 @@ function showRules() {
     ['05 / The king has a chance', 'Kings are never captured. Hidden kings cannot be checked. When a king is revealed in check, its owner immediately receives one response action before checkmate is judged. A challenge that uncovers an attack on your own king also gives you a response. If both kings are attacked, the challenging player responds first. If no safe response exists, take one preparation action; remaining in check afterward loses.'],
     ['06 / Finish the game', 'Checkmate wins. A player with no legal actions and no check draws. Three identical positions with the same player and action allowance draw, as do 100 actions without a reveal, capture, pawn move, stack, or unstack. Turns switch immediately by default. Enable “Pass-device screen between turns” beside the board if you want a privacy pause; you can toggle it during a game. This prototype does not save games; refreshing starts a new one.']
   ];
-  if (rules.chaos.enabled) blocks.unshift(['00 / Owen’s Rules', `This game was invented by a 4-year-old, so the way to win keeps changing. Owen picks a goal, such as “Get 4 of your pieces into the other team’s half.” The first player to finish it gets a crown, and Owen picks a new goal. Goals marked “counts from now” only count what happens after they appear. First to ${rules.chaos.crownsToWin} crowns wins, and checkmate still wins instantly. Owen gets bored after ${rules.chaos.boredTurns} turns and picks a new goal; the countdown is always shown. When someone is one step away, each time the turn passes there is a ${Math.round(rules.chaos.nuhUhChance * 100)}% chance Owen says “Nuh-uh!” and changes the goal. Whenever a goal is taken away from someone one step from finishing, they get a Not Fair token (up to ${rules.chaos.maxTokens}). On your turn, spend one for free: “Not fair!” draws a new goal, or “Pinky promise” locks the goal until your next turn ends. One token per turn. Owen never picks a goal that someone has already nearly finished. Captured pieces go into your Toy Box. Catching anything bigger than a pawn gives a Sugar Rush: one extra action right away, once per turn (giving check still ends your turn, and king responses never earn one). Every ${TOYS_PER_TOKEN} toys in your Toy Box earns a Not Fair token. In Owen’s Rules, pawns can also stack with the pawn directly in front, behind, or diagonal to them.`]);
+  if (rules.chaos.enabled) blocks.unshift(['00 / Owen’s Rules', `This game was invented by a 4-year-old, so the way to win keeps changing. Owen picks a goal, such as “Get 4 of your pieces into the other team’s half.” The first player to finish it gets a crown, and Owen picks a new goal. Goals marked “counts from now” only count what happens after they appear. First to ${rules.chaos.crownsToWin} crowns wins, and checkmate still wins instantly. Owen gets bored after ${rules.chaos.boredTurns} turns and picks a new goal; the countdown is always shown. When someone is one step away, each time the turn passes there is a ${Math.round(rules.chaos.nuhUhChance * 100)}% chance Owen says “Nuh-uh!” and changes the goal. Whenever a goal is taken away from someone one step from finishing, they get a Not Fair token (up to ${rules.chaos.maxTokens}). On your turn, spend one for free: “Not fair!” draws a new goal, or “Pinky promise” locks the goal until your next turn ends. One token per turn. Owen never picks a goal that someone has already nearly finished. Captured pieces go into your Toy Box. Catching anything bigger than a pawn gives a Sugar Rush: one extra action right away, once per turn (giving check still ends your turn, and king responses never earn one). Every ${TOYS_PER_TOKEN} toys in your Toy Box earns a Not Fair token. `], ['00b / Stack anything', `Any of your pieces except the king can stack with another of yours up to 2 squares away, up to 3 high. Your first stack each turn is free, so you can use it right away. A stack moves like all of its pieces put together (a pawn in a stack steps one square any way), plus a power. The first time anyone makes a new mix, Owen invents a random power for it, and the Recipe Book remembers it for the rest of the game. You can also stack a toy from your Toy Box onto one of your pieces; mixes with a toy get wilder powers. Three of a kind always makes a secret super power. Pop off pops your own top piece onto an empty neighbor; toys stay stuck on. A captured stack comes apart, and every piece in it becomes a toy. Powers: ${Object.values(POWERS).filter(p => !p.triple).map(p => `${p.icon} ${p.name}: ${p.text}`).join(' ')}`]);
   const container = $('#rules-content'); container.replaceChildren();
   for (const [title, text] of blocks) { const block = make('section', 'rule-block'); block.append(make('h3', '', title), make('p', '', text)); container.append(block); }
   $('#rules-dialog').showModal();

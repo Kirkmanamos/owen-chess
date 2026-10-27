@@ -1,5 +1,6 @@
 import { AROUND, ORTHOGONAL, DIAGONAL, forward, offset, rowOf } from '../board.js';
 import { stackAttacks, stackMoves } from './pawn-stack.js';
+import { stackTargets, specialActions, isStuck, canBeCaptured } from './powers.js';
 
 const KNIGHT = [[-2, -1], [-2, 1], [2, -1], [2, 1], [-1, -2], [1, -2], [-1, 2], [1, 2]];
 
@@ -30,6 +31,7 @@ export const MOVEMENT = {
 export function attackedSquares(state, from) {
   const piece = state.board[from];
   if (!piece?.revealed) return [];
+  if (piece.parts) return stackTargets(state, from, MOVEMENT);
   if (piece.type === 'pawn' && piece.count === 2) return stackAttacks(state, from);
   return MOVEMENT[piece.type](state, from);
 }
@@ -39,13 +41,15 @@ function targetAction(state, from, to) {
   if (!target) return { kind: 'move', from, to };
   if (target.owner === state.board[from].owner) return null;
   if (!target.revealed) return { kind: 'challenge', from, to };
-  if (target.type === 'king') return null;
+  if (!canBeCaptured(target)) return null;
   return { kind: 'move', from, to };
 }
 
 export function movementActions(state, from) {
   const piece = state.board[from];
   if (!piece?.revealed) return [];
+  if (piece.parts) return isStuck(state, from) ? [] : [...attackedSquares(state, from).map(to => targetAction(state, from, to)).filter(Boolean), ...specialActions(state, from)];
+  if (state.chaos && isStuck(state, from)) return [];
   if (piece.type === 'pawn' && piece.count === 2) return stackMoves(state, from);
   if (piece.type !== 'pawn') return attackedSquares(state, from).map(to => targetAction(state, from, to)).filter(Boolean);
 

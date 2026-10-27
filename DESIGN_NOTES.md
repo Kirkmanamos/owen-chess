@@ -1,4 +1,4 @@
-# Design notes — Version 0.6.0
+# Design notes — Version 0.7.0
 
 This is an evolving original game, not a chess rules implementation with a decorative hidden mode. Hidden identities, directional emergence, randomized armies, and pawn stacks are central. “Veiled Crowns” is only a working title.
 
@@ -104,13 +104,16 @@ The game was originally designed by a 4-year-old who changed the rules on the fl
 
 - **Hex time (event):** Owen announces it one turn ahead. The board morphs into hex tiles for a few turns with six-direction movement on the same 64 cells, then morphs back.
 
-#### Step 2: the Toy Box and the Recipe Book
+#### Stacks and powers (Version 0.7)
 
-- Toy Box pieces (already collected) can be stacked onto your own pieces. Stacks can mix any types, up to 3 high, including a queen with a knight and pieces directly in front of you.
-- A new power must be obvious the moment it appears: a reveal animation, a name and icon on the stack, and the move highlights shown right away.
-- Known recipes plus Mystery Mixes: an unknown combination rolls a random power the first time, then is written into a public Recipe Book for the rest of the game. Mixed-color stacks roll from a wilder pool.
-- **Triple stacks of one type are extra special,** each with its own signature power (for example three knights or three rooks).
-- Every new move and power needs its own animation.
+- **Who stacks.** Any revealed non-king piece can stack with any of your revealed non-king pieces within 2 squares (Chebyshev distance; it hops over). Stacks hold at most 3 pieces. The moving piece lands on the partner's square, and the partner stays on the bottom.
+- **Easy by design.** The first stack or toy-stack each turn costs no action (`chaos.hugTurn`), so the new power can be used immediately. Partners show a **+** marker, and clicking one stacks directly.
+- **Movement.** A stack attacks and moves with the union of its parts' movement (a pawn part steps one square any way, like the original pawn stacks), plus its power's geometry. Captures follow the normal rules: hidden targets are challenged, and kings and Forts can't be captured.
+- **Recipes.** A recipe key is the sorted part types, plus `*` when any part is a toy (the opponent's color). A new key rolls from the tame pool (wild pool if it includes a toy) using the stored seed, and `chaos.recipes` keeps it for the rest of the game. Froggy is never rolled for a mix that already contains a unicorn. Three of a kind always gives its signature power.
+- **Toys.** Captured units, with stacks split into parts, go to `chaos.toys[capturer]`. Adopting removes one toy of the chosen type and stacks it onto your piece. Toys can never be popped off; only your own non-bottom piece can pop onto an empty neighbor, and the remaining parts recompute their recipe. Not Fair tokens still count every captured unit, including toys you later use.
+- **Powers.** Bouncy (2-square straight jumps), Froggy (knight hops), Floaty (any square within 2), Ghosty (up to 3 through pieces), Fort (uncapturable), Sticky (touching enemies cannot move; they can still stack), Swappy (swap with any of your revealed pieces), Sneezy (push every touching enemy, hidden or not, one square straight away into an empty square), Pew Pew (capture a revealed non-king enemy exactly 2 away in a straight line without moving). Triples: Choo-Choo (+rook slides), Rainbow Unicorn (one or two knight hops), Wizard (teleport to any empty square of its color), Castle Crusher (rook lines through pieces), Mega Queen (+knight hops).
+- **King safety** uses the same legality filter as every other action. A sneeze can push a king; any resulting check is resolved on that player's turn as usual.
+- **Feedback.** Power events drive a toast (a rainbow ring for a new invention), a badge pop and ring on the tile, a highlighted Recipe Book row, and sparkles on every square the stack attacks. Zap fires a laser plus PEW!, sneeze shows ACHOO! with the pushed pieces sliding, swap slides both pieces, and a toy flies out of the Toy Box when adopted.
 
 ## Temporary assumptions
 

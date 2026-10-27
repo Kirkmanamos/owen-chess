@@ -1,5 +1,7 @@
 import { otherPlayer, rowOf, colOf, index } from '../board.js';
 import { isInCheck } from './king.js';
+import { roll } from './random.js';
+import { partsOf } from './powers.js';
 
 // Owen's Rules: the win condition is a goal that keeps changing. The
 // chaos is tamed three ways: changes are telegraphed (a visible boredom
@@ -58,21 +60,13 @@ export const GOALS = [
     text: 'Get 3 pawns into the other team’s half. A pawn stack counts as 2.',
     progress: (state, player) => size(mine(state, player).filter(p => p.type === 'pawn' && enemyHalf(p.square, player))) },
   { id: 'twins', icon: '👯', title: 'Twin Towers', target: 2, needsStacks: true,
-    text: 'Have 2 pawn stacks on the board at the same time.',
-    progress: (state, player) => mine(state, player).filter(p => p.count === 2).length },
+    text: 'Have 2 stacks on the board at the same time.',
+    progress: (state, player) => mine(state, player).filter(p => p.count >= 2).length },
   { id: 'collector', icon: '🧸', title: 'Toy Collector', target: 3,
     text: 'Be ahead by 3 captured pieces. A captured stack counts as 2.',
     progress: (state, player) => Math.max(0, capturedBy(state, player) - capturedBy(state, otherPlayer(player))) }
 ];
 const GOAL = Object.fromEntries(GOALS.map(goal => [goal.id, goal]));
-
-// Mulberry32. The seed lives in the state, so transitions stay pure and replayable.
-function roll(chaos) {
-  let t = (chaos.seed = (chaos.seed + 0x6D2B79F5) >>> 0);
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-}
 
 export function progressOf(state, player, goal = GOAL[state.chaos.goal]) {
   return goal.tally ? state.chaos.tally[player] : goal.progress(state, player);
@@ -118,7 +112,8 @@ function changeGoal(state, reason, player = null) {
 export function createChaos(state, random) {
   state.chaos = {
     seed: Math.floor(random() * 4294967296) >>> 0, goal: null, goalTurn: 1, tally: { 1: 0, 2: 0 },
-    crowns: { 1: 0, 2: 0 }, tokens: { 1: 0, 2: 0 }, lockedUntil: 0, lockedBy: null, tokenTurn: 0, sugarTurn: 0, recent: [], events: []
+    crowns: { 1: 0, 2: 0 }, tokens: { 1: 0, 2: 0 }, lockedUntil: 0, lockedBy: null, tokenTurn: 0, sugarTurn: 0, hugTurn: 0, recent: [], events: [],
+    toys: { 1: [], 2: [] }, recipes: {}
   };
   drawGoal(state);
 }
@@ -157,6 +152,8 @@ export function captureRewards(before, next, action, actor) {
   const { chaos } = next;
   const square = action.step ?? action.to;
   chaos.events.push({ type: 'capture', player: actor, square, toys: toys.map(p => ({ type: p.type, count: p.count, owner: p.owner })) });
+  // A captured stack comes apart: every piece in it becomes its own toy.
+  chaos.toys = { ...chaos.toys, [actor]: [...chaos.toys[actor], ...toys.flatMap(partsOf)] };
   const earned = Math.floor(capturedBy(next, actor) / TOYS_PER_TOKEN) - Math.floor(capturedBy(before, actor) / TOYS_PER_TOKEN);
   if (earned > 0 && chaos.tokens[actor] < next.rules.chaos.maxTokens) {
     chaos.tokens[actor] = Math.min(next.rules.chaos.maxTokens, chaos.tokens[actor] + earned);
@@ -216,6 +213,8 @@ export function publicChaos(state) {
     crowns: { ...chaos.crowns }, tokens: { ...chaos.tokens },
     crownsToWin: state.rules.chaos.crownsToWin, nuhUhChance: state.rules.chaos.nuhUhChance,
     turnsLeft: Math.max(0, turnsLeft(state)), locked: isLocked(state), lockedBy: isLocked(state) ? chaos.lockedBy : null,
-    events: structuredClone(chaos.events)
+    events: structuredClone(chaos.events), toys: structuredClone(chaos.toys),
+    recipes: Object.entries(chaos.recipes).map(([key, power]) => ({ key, power })),
+    freeStack: chaos.hugTurn !== state.turnNumber
   };
 }
