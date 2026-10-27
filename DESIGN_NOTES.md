@@ -1,4 +1,4 @@
-# Design notes — Version 0.5.0
+# Design notes — Version 0.6.0
 
 This is an evolving original game, not a chess rules implementation with a decorative hidden mode. Hidden identities, directional emergence, randomized armies, and pawn stacks are central. “Veiled Crowns” is only a working title.
 
@@ -83,6 +83,14 @@ All three toggles start **off**, may be combined freely, and require stack enabl
 - Unlimited free reveals supersede this experiment. The settings UI disables the bonus checkbox while retaining its choice, and the engine treats it as inactive. All stack experiments remain independently compatible; stack scouting reveals an enemy, while this bonus reveals one of your own hidden tiles.
 - The bonus phase is explicit public turn state and part of repetition detection. Legal highlights and bonus availability use only public occupancy and revealed attacks, never secret identities.
 
+#### Know your own crown (Version 0.6)
+
+- **Know your own crown** (`king.ownerKnows`) is an independent toggle, **off by default**. Each player can privately see which of their own hidden tiles is the king. Nothing else about their army is revealed.
+- **Motivation (bot playtest, October 2026):** in about 1,700 simulated games, kings were exposed by enemy challenges four times as often as by their owners. When exactly one king started on the front line (rank 4/5 or file d), that side lost about 65% of decisive games. Knowing your own king turns this luck into decisions: guarding, bluffing with decoys, or digging the king out on your own terms.
+- The information lives in `privateView(state, player)`, separate from `publicView`. Legal actions, check, and response scheduling are unchanged, so highlights still cannot act as a king detector for either player.
+- **Presentation assumption:** the device is shared. Peek is an explicit toggle for the current player, cleared whenever the turn passes or the pass-device screen opens. It works best with the pass-device screen on, or with the other player looking away.
+- Open questions: does knowing the king make players hide it even harder (more stalling), or does it encourage bold reveals elsewhere? Should the opponent also learn something, such as the king's row, to keep the hunt fair?
+
 ## Temporary assumptions
 
 The author clarified that both armies occupy files a–d in the two left corners, and that the horizontal move itself reveals a tile. These replace the original opposite-diagonal-corner interpretation and stationary voluntary reveal.
@@ -94,6 +102,8 @@ For Version 0.2.1, the author confirmed keeping Move & Challenge after encounter
 For Version 0.3, the author requested any-adjacent stacking, stack-and-step, and stack scouting as three independent playtest toggles. All are implemented and off by default. The atomic resolution, optional choices, and scouting after a bonus step are temporary interpretations documented above.
 
 For Version 0.4, the author expanded the opening to up to four squares right, or one square forward or left when available. The temporary interpretation is a straight clear slide with no jumping or capturing, and forward follows each player's pawn direction. The new profile is the default. Move & Challenge and all three stack toggles retain their existing behavior.
+
+For Version 0.6, a bot playtest suggested reducing king-placement luck. **Know your own crown** was added as an off-by-default toggle. Peek visibility on a shared device is a presentation choice, not a security guarantee.
 
 For Version 0.5, the author requested a separate bonus-reveal toggle to test development under queen pressure, and rejected queen range caps and cooldowns. The temporary timing is one optional reveal after all normal actions, with check and king responses taking priority. The toggle starts off; no attack-warning feature or queen restriction is added.
 
@@ -134,6 +144,7 @@ The following details are provisional implementations, not claims that the desig
 | Is the mobility worth concentrating two pawns on one capturable square? | Both pawns move together and are lost together | `rules/pawn-stack.js`, `engine.js` |
 | Where may pawns unstack? | Orthogonal empty neighbor, one action | `rules/pawn-stack.js` |
 | What should a stack do on its promotion rank? | Remain a stack; promote single pawns when split | `engine.js` |
+| Should a player know where their own king is hidden? | **Know your own crown**, off by default; private peek on your turn, no legality changes | `rules/config.js`, `engine.js` (`privateView`), `main.js` |
 | Can a player indefinitely avoid revealing their king? | Only the general draw safeguards prevent endless play | `rules/outcome.js` |
 
 ## Unresolved design questions

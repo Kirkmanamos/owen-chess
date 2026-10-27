@@ -1,4 +1,4 @@
-# Veiled Crowns — Version 0.5.0
+# Veiled Crowns — Version 0.6.0
 
 A playable local two-player prototype of a hidden-army strategy game. The title is a working name. The rules are deliberately experimental.
 
@@ -53,6 +53,12 @@ The normal action can itself be a reveal, so a one-action turn can uncover two t
 
 The bonus is once per turn, even with two or three normal actions, and combines with all three stack experiments. **Slide-and-reveal is free (unlimited)** supersedes it; that setting disables the bonus checkbox while retaining its choice. Applying playtest settings starts a new game, and **New game** retains the rules. Queen movement remains unchanged.
 
+### Know your own crown
+
+The **Know your own crown** toggle in **Playtest rules** is **off by default**. When enabled, a **Peek at Player N's crown** button appears below the board. It marks which of the current player's hidden tiles is their king, with a gold ring and ♚. Press it again to hide the mark; it also hides automatically when the turn passes or the pass-device screen appears. The other player should look away while you peek.
+
+Only your own king is shown. Every other identity, including the rest of your army, stays hidden from both players. The rule changes no movement, reveal, challenge, or check logic, so legal-move highlights never depend on it. It is meant to test bluffing and deliberate king defence, and to soften the luck of where the shuffle puts your king.
+
 ## Architecture
 
 | File | Responsibility |
@@ -72,8 +78,9 @@ The bonus is once per turn, even with two or three normal actions, and combines 
 | `tests/exposure.test.js` | Reveal distances, blockers, player directions, promotion, privacy and king responses |
 | `tests/stack-experiments.test.js` | All eight experiment combinations, compound actions, scouting privacy and king responses |
 | `tests/bonus-reveal.test.js` | Bounded reveal turns, skipping, check responses, privacy, stacking interactions and seeded play |
+| `tests/owner-knows-king.test.js` | Own-king private view, public-projection and legal-action independence |
 
-The engine exports `createGame(overrides, random)`, `getLegalActions(state)`, `applyAction(state, action)`, and `publicView(state)`. All actions are validated by the engine. `applyAction` returns a new state and never mutates the supplied one. An injectable random function supports deterministic tests.
+The engine exports `createGame(overrides, random)`, `getLegalActions(state)`, `applyAction(state, action)`, and `publicView(state)`, plus `privateView(state, player)` for the optional own-king peek. All actions are validated by the engine. `applyAction` returns a new state and never mutates the supplied one. An injectable random function supports deterministic tests.
 
 Examples of code-level experiments:
 

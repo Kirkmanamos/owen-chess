@@ -191,3 +191,12 @@ export function publicView(state) {
     rules: structuredClone(state.rules)
   };
 }
+
+// With king.ownerKnows, a player may privately learn where their own hidden king
+// sits. It stays out of publicView so the shared projection never carries it, and
+// it changes no legal action: highlights remain independent of hidden identities.
+export function privateView(state, player) {
+  if (!state.rules.king.ownerKnows) return { kingSquare: null };
+  const square = state.board.findIndex(piece => piece?.owner === player && piece.type === 'king' && !piece.revealed);
+  return { kingSquare: square === -1 ? null : square };
+}
