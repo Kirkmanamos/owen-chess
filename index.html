@@ -12,7 +12,7 @@
   <div class="page-shell">
     <header class="site-header">
       <a class="brand" href="./" aria-label="Opening Arena home"><span class="brand-mark" aria-hidden="true">♝</span><span>Opening Arena<small>LEARN OPENINGS BY PLAYING THEM</small></span></a>
-      <div class="header-actions"><span id="progress" class="progress-pill"></span></div>
+      <div class="header-actions"><button id="theme-button" class="button sound-toggle" type="button" aria-haspopup="dialog"><span aria-hidden="true">🎨</span><span class="sound-label">Theme</span></button><button id="sound-toggle" class="button sound-toggle" type="button" aria-label="Sound effects"></button><span id="progress" class="progress-pill"></span></div>
     </header>
 
     <main>
@@ -20,7 +20,7 @@
 
       <div class="play-area">
         <section class="board-section" aria-label="Board">
-          <div class="turn-bar"><div class="turn-player"><span id="turn-dot" class="player-dot w"></span><div><strong id="turn-title"></strong><span id="turn-subtitle"></span></div></div><span id="ply-count" class="turn-count"></span></div>
+          <div class="turn-bar"><div class="turn-player"><span id="turn-dot" class="player-dot w"></span><div><strong id="turn-title"></strong><span id="turn-subtitle"></span></div></div><div class="turn-badges"><span id="streak" class="streak" hidden></span><span id="ply-count" class="turn-count"></span></div></div>
           <div class="board-frame"><div class="board-surround"><div id="rank-labels" class="rank-labels" aria-hidden="true"></div><div class="board-wrap"><div id="board" class="board" role="grid" aria-label="Chessboard. Select a piece, then a destination square. Use arrow keys to move between squares."></div><svg id="arrows" class="arrows" viewBox="0 0 800 800" aria-hidden="true"><defs><marker id="head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker></defs><g id="arrow-layer"></g></svg></div><div id="file-labels" class="file-labels" aria-hidden="true"></div></div></div>
           <div class="controls" aria-label="Move controls">
             <button id="first" class="icon-button" aria-label="Go to start" title="Start (Home)">⏮</button>
@@ -47,6 +47,12 @@
       <footer class="page-footer"><span>Opening Arena</span><span>More openings coming. Progress is saved in this browser.</span></footer>
     </main>
   </div>
+  <dialog id="theme-dialog" class="theme-dialog" aria-labelledby="theme-title">
+    <div class="dialog-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h2 id="theme-title">Theme</h2></div><button class="icon-button" type="button" data-close aria-label="Close theme picker">×</button></div>
+    <p class="eyebrow">BOARD</p><div id="board-swatches" class="swatches"></div>
+    <p class="eyebrow">PIECES</p><div id="piece-swatches" class="swatches"></div>
+    <button class="button primary" type="button" data-close>Done</button>
+  </dialog>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

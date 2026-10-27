@@ -25,6 +25,10 @@ npm run build  # Copy browser assets into dist/ for static hosting
 - **Learn** steps through a variation one move at a time. A coach explains each move, and arrows and highlighted squares show the idea. **What can come next** lists every move the course covers from the current position, so you can follow any branch. You can also play moves on the board: a covered move switches to that variation.
 - **Practice** has you play one side (usually White) from move 1. The opponent replies automatically. A wrong move is counted; if it belongs to a different variation, the coach says which one. **Hint** shows which piece to move, then the move itself. Finishing a line with no mistakes and no hints marks it **mastered**. Progress is saved in this browser.
 - **Variations** cards summarize each line's plans, and the **Move tree** shows exactly where the lines split.
+- **Feel:** pieces slide between squares, and captures spin away. In Practice, streaks of correct moves raise the coin sound's pitch and earn cheers and confetti. Mastering a line ends with a confetti burst.
+- **Sound and theme:** the header has a mute button and a **Theme** picker with five board colour schemes and five piece sets. Both settings are saved in this browser.
+
+To audition and pick sound effects locally, open **http://localhost:5173/sound-lab.html**. It offers several styles for each sound. Picks are saved in the browser, and the defaults live in `DEFAULTS` in `src/sound.js`. The lab is not part of the published site.
 
 Keyboard: ← / → step through moves in Learn mode, Home / End jump to the start or end. On the board, Tab in, use the arrow keys to move between squares, and Enter or Space to select. Escape clears a selection.
 
@@ -45,4 +49,4 @@ Keyboard: ← / → step through moves in Learn mode, Home / End jump to the sta
 
 Each course is one file in `src/openings/`. It exports `opening` (name, shared starting moves, intro), `lines` (each a full move sequence in standard notation with a summary and key ideas), and `notes` (coaching text keyed by the move path that reaches the position, with optional `arrows` like `'c4f7'` and `marks` like `'f7'`). Positions shared by several lines are explained once. The course tests check that every line is legal and every move has a note.
 
-`src/chess.js` is a self-contained legal-move generator with SAN reading and writing. `src/course.js` replays lines and merges them into the move tree. `src/main.js` is the interface.
+`src/sound.js` synthesizes every sound with the Web Audio API, so there are no audio files. `src/confetti.js` draws the confetti. `src/chess.js` is a self-contained legal-move generator with SAN reading and writing. `src/course.js` replays lines and merges them into the move tree. `src/main.js` is the interface.

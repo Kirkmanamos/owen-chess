@@ -1,6 +1,8 @@
 import { legalMoves, toSan, squareName, squareIndex, rowOf, colOf, colorOf, inCheck } from './chess.js';
 import { buildCourse, moveNumber } from './course.js';
 import * as italian from './openings/italian.js';
+import { play, isMuted, setMuted } from './sound.js';
+import { confettiFrom } from './confetti.js';
 
 const $ = selector => document.querySelector(selector);
 const course = buildCourse(italian);
@@ -8,7 +10,12 @@ const GLYPHS = { k: ['♔', '♚'], q: ['♕', '♛'], r: ['♖', '♜'], b: ['�
 const NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const SIDE = { w: 'White', b: 'Black' };
 const STORAGE_KEY = 'opening-arena.mastered';
+const THEME_KEY = 'opening-arena.theme';
+const BOARDS = { garden: 'Garden', ocean: 'Ocean', candy: 'Candy', walnut: 'Walnut', midnight: 'Midnight' };
+const PIECE_SETS = { classic: 'Classic', marble: 'Marble', jade: 'Gold & Jade', candy: 'Candy', ember: 'Ember' };
 const REPLY_DELAY = 650;
+const MOTION_MS = 260;
+const STREAK_CHEERS = { 3: 'Nice!', 5: 'On fire!', 8: 'Unstoppable!', 12: 'Opening expert!' };
 
 const state = {
   lineId: course.lines[0].id,
@@ -19,6 +26,7 @@ const state = {
   focus: squareIndex('e2'),
   feedback: null,
   practice: null,
+  anim: null,
   timer: null
 };
 
@@ -73,7 +81,10 @@ function selectLine(id, { ply = 0, mode = state.mode } = {}) {
 
 function goTo(ply) {
   if (state.mode !== 'learn') return;
-  state.ply = Math.max(0, Math.min(line().moves.length, ply));
+  const target = Math.max(0, Math.min(line().moves.length, ply));
+  if (target === state.ply + 1) state.anim = motion(line().moves[state.ply]);
+  else if (target === state.ply - 1) state.anim = motion(line().moves[target], true);
+  state.ply = target;
   state.selected = -1;
   state.feedback = null;
   render();
@@ -83,6 +94,7 @@ function goTo(ply) {
 function goToPath(path) {
   const node = course.nodes.get(path);
   const id = node.lines.includes(state.lineId) ? state.lineId : node.lines[0];
+  if (state.mode === 'learn' && node.parent?.path === pathAt(state.ply)) state.anim = motion(course.byId.get(id).moves[node.ply - 1]);
   if (id !== state.lineId || state.mode !== 'learn') selectLine(id, { ply: node.ply, mode: 'learn' });
   else goTo(node.ply);
 }
@@ -95,7 +107,7 @@ function setMode(mode) {
 // ---------- Practice ----------
 
 function startPractice() {
-  state.practice = { ply: 0, mistakes: 0, hints: 0, hint: 0, done: false };
+  state.practice = { ply: 0, mistakes: 0, hints: 0, hint: 0, done: false, streak: 0, best: 0 };
   state.feedback = { kind: 'info', text: `You play ${SIDE[line().side]}. Find each book move. Wrong guesses and hints are counted.` };
   queueReply();
 }
@@ -116,6 +128,7 @@ function queueReply() {
     p.ply++;
     p.hint = 0;
     const note = course.noteFor(l.paths[p.ply - 1]);
+    state.anim = motion(l.moves[p.ply - 1]);
     state.feedback = { kind: 'reply', move: l.moves[p.ply - 1], ply: p.ply, text: note?.text, previous };
     if (p.ply >= l.moves.length) finishPractice();
     render();
@@ -126,9 +139,14 @@ function finishPractice() {
   const p = state.practice;
   p.done = true;
   const clean = p.mistakes === 0 && p.hints === 0;
+  const firstTime = clean && !mastered.has(state.lineId);
   if (clean) { mastered.add(state.lineId); saveMastered(); }
+  play(clean ? 'mastered' : 'done', MOTION_MS + 450);
+  if (clean) setTimeout(() => confettiFrom($('#board'), { count: firstTime ? 220 : 140, power: 1.25 }), MOTION_MS + 400);
+  state.progressPop = firstTime;
   state.finalNote = state.feedback;
-  state.feedback = { kind: clean ? 'mastered' : 'done', text: clean ? 'Perfect run: no mistakes and no hints. This line is mastered.' : `Line complete with ${p.mistakes} ${p.mistakes === 1 ? 'mistake' : 'mistakes'} and ${p.hints} ${p.hints === 1 ? 'hint' : 'hints'}. Try again for a clean run to master it.` };
+  const best = p.best > 1 ? ` Best streak: ${p.best} in a row.` : '';
+  state.feedback = { kind: clean ? 'mastered' : 'done', text: clean ? `Perfect run: no mistakes and no hints. This line is mastered.${best}` : `Line complete with ${p.mistakes} ${p.mistakes === 1 ? 'mistake' : 'mistakes'} and ${p.hints} ${p.hints === 1 ? 'hint' : 'hints'}.${best} Try again for a clean run to master it.` };
 }
 
 function practiceMove(move) {
@@ -137,13 +155,20 @@ function practiceMove(move) {
   const expected = l.moves[p.ply];
   const before = l.positions[p.ply];
   if (move.from === expected.from && move.to === expected.to) {
+    // Only moves found without a hint keep the streak going.
+    p.streak = p.hint ? 0 : p.streak + 1;
+    p.best = Math.max(p.best, p.streak);
     p.ply++;
     p.hint = 0;
+    state.anim = { ...motion(expected), celebrate: true, cheer: STREAK_CHEERS[p.streak] };
+    play('correct', MOTION_MS + 60, Math.max(0, p.streak - 1));
     state.feedback = { kind: 'good', move: expected, ply: p.ply, text: course.noteFor(l.paths[p.ply - 1])?.text };
     queueReply();
     return;
   }
   p.mistakes++;
+  p.streak = 0;
+  state.anim = { shake: true, square: move.to };
   const san = toSan(before, move);
   const path = [pathAt(p.ply), san].filter(Boolean).join(' ');
   const node = course.nodes.get(path);
@@ -156,6 +181,8 @@ function hint() {
   const p = state.practice;
   if (p.done || position().turn !== userColor()) return;
   if (p.hint < 2) { p.hint++; p.hints++; }
+  p.streak = 0;
+  play('hint');
   const expected = line().moves[p.ply];
   state.feedback = p.hint === 1
     ? { kind: 'hint', text: `Move your ${NAMES[expected.piece.toLowerCase()]} on ${squareName(expected.from)}.` }
@@ -179,6 +206,7 @@ function onSquare(square) {
     }
   }
   state.selected = piece && colorOf(piece) === pos.turn && square !== state.selected ? square : -1;
+  if (state.selected >= 0) play('select');
   render();
 }
 
@@ -195,6 +223,7 @@ function playMove(move) {
       state.flipped = line().side === 'b';
     }
     state.ply = node.ply;
+    state.anim = motion(move);
     state.feedback = null;
   } else {
     const next = line().moves[state.ply];
@@ -225,6 +254,96 @@ function arrowsToDraw() {
   };
 }
 
+function pieceElement(piece) {
+  const [outline, filled] = GLYPHS[piece.toLowerCase()];
+  const glyph = make('span', `piece ${colorOf(piece)}`, `${outline}\uFE0E`);
+  glyph.dataset.fill = `${filled}\uFE0E`;
+  glyph.setAttribute('aria-hidden', 'true');
+  return glyph;
+}
+
+// Describe how a move looks on screen: which pieces slide (the rook too when
+// castling) and which piece is captured. Reversed when stepping backward.
+function motion(move, reverse = false) {
+  const slides = [[move.from, move.to]];
+  if (move.castle) slides.push(move.castle === 'k' ? [move.from + 3, move.from + 1] : [move.from - 4, move.from - 1]);
+  const capture = move.captured
+    ? { square: move.enPassant ? move.to + (colorOf(move.piece) === 'w' ? 8 : -8) : move.to, piece: move.captured }
+    : null;
+  return { slides: reverse ? slides.map(([from, to]) => [to, from]) : slides, capture, reverse };
+}
+
+// The board is rebuilt on every render, so each moved piece starts at its old
+// square's offset and glides home. Only transforms and opacity animate.
+// A ring ripples out from the landing square; streak milestones add a cheer
+// that floats up and a small confetti pop.
+function celebrate(cell, cheer) {
+  const ring = make('span', 'ripple');
+  cell.append(ring);
+  ring.animate([{ transform: 'scale(.3)', opacity: 0.9 }, { transform: 'scale(1.9)', opacity: 0 }], { duration: 520, delay: MOTION_MS * 0.8, easing: 'ease-out', fill: 'both' })
+    .finished.then(() => ring.remove(), () => {});
+  if (!cheer) return;
+  const bubble = make('span', 'cheer', cheer);
+  cell.append(bubble);
+  bubble.animate([
+    { transform: 'translate(-50%, 0) scale(.4)', opacity: 0 },
+    { transform: 'translate(-50%, -70%) scale(1.15)', opacity: 1, offset: 0.25 },
+    { transform: 'translate(-50%, -120%) scale(1)', opacity: 1, offset: 0.75 },
+    { transform: 'translate(-50%, -160%) scale(.95)', opacity: 0 }
+  ], { duration: 1300, delay: MOTION_MS, easing: 'ease-out', fill: 'both' }).finished.then(() => bubble.remove(), () => {});
+  setTimeout(() => confettiFrom(cell, { count: 40, power: 0.6 }), MOTION_MS);
+}
+
+function animateBoard(anim) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cellAt = square => $(`#board [data-square="${square}"]`);
+  if (anim.shake) {
+    cellAt(anim.square)?.animate([{ boxShadow: 'inset 0 0 0 50px #c0503a99' }, { boxShadow: 'inset 0 0 0 50px #c0503a00' }], { duration: 500, easing: 'ease-out' });
+    $('.board-frame').animate([{ transform: 'none' }, { transform: 'translateX(-7px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-3px)' }, { transform: 'none' }], { duration: 340, easing: 'ease-out' });
+    return;
+  }
+  for (const [from, to] of anim.slides) {
+    const cell = cellAt(to);
+    const piece = cell.querySelector('.piece');
+    if (!piece) continue;
+    const start = cellAt(from).getBoundingClientRect();
+    const end = cell.getBoundingClientRect();
+    cell.classList.add('moving');
+    piece.animate([
+      { transform: `translate(${start.left - end.left}px, ${start.top - end.top}px) scale(1.12)` },
+      { transform: 'translate(0, 0) scale(1.12)', offset: 0.8 },
+      { transform: 'none' }
+    ], { duration: MOTION_MS, easing: 'cubic-bezier(.3,.8,.3,1)' });
+  }
+  if (anim.celebrate) celebrate(cellAt(anim.slides[0][1]), anim.cheer);
+  if (!anim.capture) return;
+  const cell = cellAt(anim.capture.square);
+  if (anim.reverse) {
+    cell.querySelector('.piece')?.animate([{ opacity: 0, transform: 'scale(.5)' }, { opacity: 1, transform: 'none' }], { duration: 220, delay: MOTION_MS * 0.6, fill: 'backwards', easing: 'ease-out' });
+    return;
+  }
+  const ghost = pieceElement(anim.capture.piece);
+  ghost.classList.add('ghost');
+  cell.append(ghost);
+  ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(1.5) rotate(-18deg)' }], { duration: 320, delay: MOTION_MS * 0.7, fill: 'both', easing: 'ease-out' })
+    .finished.then(() => ghost.remove(), () => {});
+}
+
+// Time the landing sound to the moment the sliding piece arrives.
+function playMoveSound(anim, check) {
+  if (anim.shake) return play('wrong');
+  const landing = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : MOTION_MS * 0.75;
+  play(anim.capture && !anim.reverse ? 'capture' : anim.slides.length > 1 ? 'castle' : 'move', landing);
+  if (check && !anim.reverse) play('check', landing + 120);
+}
+
+function renderSoundToggle() {
+  const toggle = $('#sound-toggle');
+  toggle.replaceChildren(make('span', '', isMuted() ? '🔇\uFE0E' : '♪'), make('span', 'sound-label', isMuted() ? 'Sound off' : 'Sound on'));
+  toggle.setAttribute('aria-pressed', String(!isMuted()));
+  toggle.classList.toggle('off', isMuted());
+}
+
 function renderBoard() {
   const pos = position();
   const ply = currentPly();
@@ -247,11 +366,7 @@ function renderBoard() {
     if (targets.some(m => m.to === square)) cell.classList.add(piece || targets.some(m => m.to === square && m.enPassant) ? 'capture' : 'legal');
     let label = `${squareName(square)}, ${piece ? `${SIDE[colorOf(piece)]} ${NAMES[piece.toLowerCase()]}` : 'empty'}`;
     if (piece) {
-      const [outline, filled] = GLYPHS[piece.toLowerCase()];
-      const glyph = make('span', `piece ${colorOf(piece)}`, `${outline}︎`);
-      glyph.dataset.fill = `${filled}︎`;
-      glyph.setAttribute('aria-hidden', 'true');
-      cell.append(glyph);
+      cell.append(pieceElement(piece));
     }
     if (targets.some(m => m.to === square)) label += ', legal move';
     cell.setAttribute('aria-label', label);
@@ -264,6 +379,8 @@ function renderBoard() {
   }
   const layer = $('#arrow-layer');
   layer.replaceChildren();
+  // Arrows fade in after a sliding piece lands, but not on every re-render.
+  layer.classList.toggle('fresh', Boolean(state.anim?.slides));
   const point = square => {
     const row = state.flipped ? 7 - rowOf(square) : rowOf(square);
     const col = state.flipped ? 7 - colOf(square) : colOf(square);
@@ -287,6 +404,11 @@ function renderBoard() {
   const ranks = state.flipped ? '12345678' : '87654321';
   $('#file-labels').replaceChildren(...[...files].map(f => make('span', '', f)));
   $('#rank-labels').replaceChildren(...[...ranks].map(r => make('span', '', r)));
+  if (state.anim) {
+    playMoveSound(state.anim, checked >= 0);
+    animateBoard(state.anim);
+  }
+  state.anim = null;
 }
 
 function renderStatus() {
@@ -304,7 +426,18 @@ function renderStatus() {
     $('#turn-subtitle').textContent = `${l.family} · ${l.name}`;
   }
   $('#ply-count').textContent = `MOVE ${Math.min(Math.floor(ply / 2) + 1, Math.ceil(l.moves.length / 2))}`;
-  $('#progress').textContent = `${mastered.size} / ${course.lines.length} LINES MASTERED`;
+  $('#progress').textContent = `${mastered.size} / ${course.lines.length} MASTERED`;
+  if (state.progressPop) $('#progress').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)', background: '#e2f0e6' }, { transform: 'scale(1)' }], { duration: 600, delay: MOTION_MS + 400, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+  state.progressPop = false;
+  const streak = $('#streak');
+  const p = state.practice;
+  const count = state.mode === 'practice' ? p.streak : 0;
+  streak.hidden = count < 2;
+  if (count >= 2 && streak.dataset.count !== String(count)) {
+    streak.textContent = `🔥 ${count} in a row`;
+    streak.animate([{ transform: 'scale(.6)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' }], { duration: 420, delay: MOTION_MS, easing: 'cubic-bezier(.3,1.6,.5,1)', fill: 'backwards' });
+  }
+  streak.dataset.count = count;
 }
 
 function renderControls() {
@@ -522,15 +655,61 @@ function renderLineSelect() {
   select.addEventListener('change', () => selectLine(select.value));
 }
 
+// Slide new coaching text in, so each move's lesson feels like a fresh card.
+let coachText = '';
+function animateCoach() {
+  const coach = $('#coach');
+  if (coach.textContent === coachText) return;
+  coachText = coach.textContent;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  [...coach.children].forEach((child, i) => child.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 40 * i, easing: 'ease-out', fill: 'backwards' }));
+}
+
 function render() {
   renderBoard();
   renderStatus();
   renderControls();
   renderCoach();
+  animateCoach();
   renderBranches();
   renderMoves();
   renderCards();
   renderTree();
+}
+
+// ---------- Theme ----------
+
+function loadTheme() {
+  try { return { board: 'garden', pieces: 'classic', ...JSON.parse(localStorage.getItem(THEME_KEY)) }; } catch { return { board: 'garden', pieces: 'classic' }; }
+}
+
+let theme = loadTheme();
+
+function applyTheme() {
+  document.documentElement.dataset.board = theme.board;
+  document.documentElement.dataset.pieces = theme.pieces;
+  try { localStorage.setItem(THEME_KEY, JSON.stringify(theme)); } catch { /* theme just won't persist */ }
+}
+
+// Each swatch carries its own data attribute, so it previews its theme's colors.
+function renderThemePicker() {
+  const swatch = (kind, key, label, preview) => {
+    const b = button('', () => { theme = { ...theme, [kind]: key }; applyTheme(); renderThemePicker(); play('select'); }, 'swatch');
+    b.dataset[kind] = key;
+    b.setAttribute('aria-pressed', String(theme[kind] === key));
+    b.append(preview, make('span', '', label));
+    return b;
+  };
+  $('#board-swatches').replaceChildren(...Object.entries(BOARDS).map(([key, label]) => {
+    const mini = make('span', 'mini-board');
+    mini.append(make('span', 'l'), make('span', 'd'), make('span', 'd'), make('span', 'l'));
+    return swatch('board', key, label, mini);
+  }));
+  $('#piece-swatches').replaceChildren(...Object.entries(PIECE_SETS).map(([key, label]) => {
+    const sample = make('span', 'mini-pieces');
+    sample.append(pieceElement('N'), pieceElement('n'));
+    return swatch('pieces', key, label, sample);
+  }));
 }
 
 // ---------- Events ----------
@@ -539,12 +718,20 @@ $('#first').addEventListener('click', () => goTo(0));
 $('#prev').addEventListener('click', () => goTo(state.ply - 1));
 $('#next').addEventListener('click', () => goTo(state.ply + 1));
 $('#last').addEventListener('click', () => goTo(line().moves.length));
+$('#sound-toggle').addEventListener('click', () => {
+  setMuted(!isMuted());
+  renderSoundToggle();
+  play('select');
+});
+$('#theme-button').addEventListener('click', () => { renderThemePicker(); $('#theme-dialog').showModal(); });
+for (const close of document.querySelectorAll('#theme-dialog [data-close]')) close.addEventListener('click', () => $('#theme-dialog').close());
+$('#theme-dialog').addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
 $('#flip').addEventListener('click', () => { state.flipped = !state.flipped; render(); });
 $('#mode-learn').addEventListener('click', () => setMode('learn'));
 $('#mode-practice').addEventListener('click', () => setMode('practice'));
 
 document.addEventListener('keydown', event => {
-  if (event.target.closest('select, input, textarea')) return;
+  if (event.target.closest('select, input, textarea, dialog')) return;
   const onBoard = event.target.closest('#board');
   if (onBoard && event.key.startsWith('Arrow')) {
     const [dr, dc] = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[event.key];
@@ -563,5 +750,7 @@ document.addEventListener('keydown', event => {
   if (actions[event.key]) { actions[event.key](); event.preventDefault(); }
 });
 
+applyTheme();
 renderLineSelect();
+renderSoundToggle();
 render();
