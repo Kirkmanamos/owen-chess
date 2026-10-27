@@ -1,4 +1,4 @@
-name: Test and publish game
+name: Test and publish site
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
-      - name: Check syntax and game rules
+      - name: Check syntax, chess rules, and course lines
         run: npm run check
       - name: Build static site
         run: npm run build

@@ -20,4 +20,4 @@ http.createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end('Not found');
   }
-}).listen(port, '127.0.0.1', () => console.log(`Veiled Crowns is ready: http://localhost:${port}`));
+}).listen(port, '127.0.0.1', () => console.log(`Opening Arena is ready: http://localhost:${port}`));
