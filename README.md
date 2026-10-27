@@ -1,6 +1,6 @@
 # Opening Arena
 
-An interactive chess opening trainer. It teaches the **Italian Game** (1.e4 e5 2.Nf3 Nc6 3.Bc4) and the **Ruy Lopez** (3.Bb5) with their main variations. Switch openings with the tabs above the board. The move tree shows both openings, so you can see exactly where they split.
+An interactive chess opening trainer. It teaches the **Italian Game** (1.e4 e5 2.Nf3 Nc6 3.Bc4), the **Ruy Lopez** (3.Bb5), and the **Queen's Gambit** (1.d4 d5 2.c4) with their main variations. Switch openings with the tabs above the board. The move tree shows every opening that starts with the same first move, so you can see exactly where the Italian and Ruy Lopez split.
 
 **Open online:** [Opening Arena](https://kirkmanamos.github.io/owen-chess/).
 
@@ -57,6 +57,17 @@ Keyboard: ← / → step through moves in Learn mode, Home / End jump to the sta
 | Exchange Variation | Why 5.Nxe5? fails | White |
 | Berlin Defense (3…Nf6) | The Berlin endgame | White |
 | Noah's Ark trap | The trap: 8.Qxd4? | Black |
+
+## Queen's Gambit lines
+
+| Family | Line | You play |
+| --- | --- | --- |
+| Declined (2…e6) | Orthodox: Capablanca's freeing plan | White |
+| Declined | Exchange: the minority attack | White |
+| Declined | Elephant Trap | Black |
+| Accepted (2…dxc4) | Classical: 3.Nf3 and …c5 | White |
+| Accepted | Why holding the pawn fails | White |
+| Slav (2…c6) | Main line: 5.a4 Bf5 | White |
 
 ## Adding an opening
 

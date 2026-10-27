@@ -2,12 +2,13 @@ import { legalMoves, toSan, squareName, squareIndex, rowOf, colOf, colorOf, inCh
 import { buildCourse, moveNumber } from './course.js';
 import * as italian from './openings/italian.js';
 import * as ruyLopez from './openings/ruy-lopez.js';
+import * as queensGambit from './openings/queens-gambit.js';
 import { play, isMuted, setMuted } from './sound.js';
 import { confettiFrom } from './confetti.js';
 import { DAY, progressKey, recordRun, isMastered, dueKeys, whenDue, buildDrill } from './progress.js';
 
 const $ = selector => document.querySelector(selector);
-const course = buildCourse([italian, ruyLopez]);
+const course = buildCourse([italian, ruyLopez, queensGambit]);
 const GLYPHS = { k: ['♔', '♚'], q: ['♕', '♛'], r: ['♖', '♜'], b: ['♗', '♝'], n: ['♘', '♞'], p: ['♙', '♟'] };
 const NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const SIDE = { w: 'White', b: 'Black' };
@@ -815,7 +816,10 @@ function renderTree() {
     }
     return wrap;
   };
-  host.append(run(course.root.children[0], true));
+  // One tree per first move (1.e4, 1.d4), so openings that share moves appear together.
+  const first = course.nodes.get(line().sans[0]);
+  $('#tree-label').textContent = `OPENINGS AFTER ${moveNumber(1, first.san)}`;
+  host.append(run(first, true));
 }
 
 // The variation menu lists the current opening's lines, grouped by family.

@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import { buildCourse } from '../src/course.js';
 import * as italian from '../src/openings/italian.js';
 import * as ruy from '../src/openings/ruy-lopez.js';
+import * as queensGambit from '../src/openings/queens-gambit.js';
 
-const course = buildCourse([italian, ruy]);
+const modules = [italian, ruy, queensGambit];
+const course = buildCourse(modules);
 const openingOf = line => course.openingById.get(line.opening);
 
 test('every line is legal and starts with its opening\'s moves', () => {
-  assert.equal(course.lines.length, italian.lines.length + ruy.lines.length);
+  assert.equal(course.lines.length, modules.reduce((sum, m) => sum + m.lines.length, 0));
   for (const line of course.lines) assert.ok(line.sans.join(' ').startsWith(openingOf(line).moves), line.id);
 });
 
@@ -42,6 +44,17 @@ test('each opening has its own intro at the starting position', () => {
 test('the Noah\'s Ark trap leaves the b3 bishop attacked', () => {
   const line = course.byId.get('ruy-noahs-ark');
   assert.equal(line.positions.at(-1).board[41], 'B');
+});
+
+test('the Queen\'s Gambit starts a separate 1.d4 tree with three answers to 2.c4', () => {
+  assert.deepEqual(course.root.children.map(c => c.san), ['e4', 'd4']);
+  assert.deepEqual(course.nodes.get(queensGambit.opening.moves).children.map(c => c.san).sort(), ['c6', 'dxc4', 'e6']);
+});
+
+test('the Elephant Trap leaves Black a knight ahead', () => {
+  const board = course.byId.get('qgd-elephant').positions.at(-1).board;
+  const count = (pieces) => board.filter(p => p && pieces.includes(p)).length;
+  assert.equal(count('nbrq'.split('')) - count('NBRQ'.split('')), 1);
 });
 
 test('the Shilling trap ends in checkmate', () => {
