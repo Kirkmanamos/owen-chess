@@ -7,6 +7,7 @@ import { combinationActions, stackExperiments } from './rules/pawn-stack.js';
 import { isInCheck, newlyCheckedKing } from './rules/king.js';
 import { actionCost, beginTurn, hasBonusReveal } from './rules/turn.js';
 import { evaluateOutcome, positionKey } from './rules/outcome.js';
+import { createChaos, chaosActions, applyChaosAction, updateChaos, publicChaos } from './rules/chaos.js';
 
 export function createGame(overrides = {}, random = Math.random) {
   const rules = createRules(overrides);
@@ -16,6 +17,8 @@ export function createGame(overrides = {}, random = Math.random) {
     captured: [], history: [], result: null, quietActions: 0, repetitions: {}
   };
   state.repetitions[positionKey(state)] = 1;
+  // Drawn after the shuffle, so seeded armies match with chaos on or off.
+  if (rules.chaos.enabled) createChaos(state, random);
   return state;
 }
 
@@ -79,7 +82,14 @@ function changeBoard(state, action, simulation = false) {
   return next;
 }
 
+// Board actions decide stalemate and checkmate. Owen's token actions are free
+// extras on top, so they never keep a stuck position alive.
 export function getLegalActions(state) {
+  const actions = boardActions(state);
+  return actions.length ? [...actions, ...chaosActions(state)] : actions;
+}
+
+function boardActions(state) {
   if (state.result) return [];
   const candidates = candidateActions(state);
   const safe = candidates.filter(action => !isInCheck(changeBoard(state, action, true), state.currentPlayer));
@@ -125,6 +135,7 @@ function switchTurn(state, player) {
 export function applyAction(state, requested) {
   const action = getLegalActions(state).find(legal => actionMatches(legal, requested));
   if (!action) throw new Error('That action is not legal in the current position.');
+  if (action.kind.startsWith('goal-')) return applyChaosAction(state, action);
   const actor = state.currentPlayer;
   const next = changeBoard(state, action);
   next.bonusRevealPending = false;
@@ -139,6 +150,7 @@ export function applyAction(state, requested) {
   // A preparation action is an actual opportunity, not indefinite immunity.
   if (state.response && isInCheck(next, actor)) {
     next.response = null;
+    if (next.chaos) next.chaos = { ...next.chaos, events: [] };
     next.result = { winner: otherPlayer(actor), reason: 'Checkmate after the king response' };
     return next;
   }
@@ -170,7 +182,9 @@ export function applyAction(state, requested) {
   }
   const key = positionKey(next);
   next.repetitions[key] = (next.repetitions[key] || 0) + 1;
-  next.result = evaluateOutcome(next, getLegalActions(next));
+  next.result = evaluateOutcome(next, boardActions(next));
+  const crowned = next.result ? null : updateChaos(state, next, action, actor);
+  if (crowned) next.result = crowned;
   return next;
 }
 
@@ -188,6 +202,6 @@ export function publicView(state) {
     captured: state.captured.map(p => ({ owner: p.owner, type: p.type, count: p.count })),
     history: state.history.map(item => ({ ...item })),
     check: { 1: isInCheck(state, 1), 2: isInCheck(state, 2) },
-    rules: structuredClone(state.rules)
+    rules: structuredClone(state.rules), chaos: publicChaos(state)
   };
 }

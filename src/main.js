@@ -19,6 +19,9 @@ let mode = 'move';
 let lastAction = null;
 let focusSquare = 32;
 let pending = null;
+let animateAction = null; // The action whose arrival animates on the next render only.
+let prevChaos = null; // Last rendered goal state, to animate what changed.
+let toastTimer = null;
 
 function make(tag, className, text) {
   const element = document.createElement(tag);
@@ -95,9 +98,11 @@ function planView(view) {
 function perform(action) {
   try {
     const player = game.currentPlayer;
+    const capturedBefore = game.captured.length;
     game = applyAction(game, action);
     pending = null;
-    lastAction = action;
+    animateAction = { ...action, captured: game.captured.length > capturedBefore };
+    if (!action.kind.startsWith('goal-')) lastAction = action;
     selected = null;
     mode = 'move';
     render();
@@ -122,6 +127,13 @@ function clickSquare(square) {
     render();
     $('#board').querySelector(`[data-square="${square}"]`)?.focus();
   }
+}
+
+// Where a tile that just landed on `square` came from, if it traveled.
+function arrivalOrigin(action, square) {
+  if (!action) return null;
+  if (action.kind === 'unstack') return square === action.to ? action.from : null;
+  return ['move', 'reveal', 'stack'].includes(action.kind) && square === (action.step ?? action.to) ? action.from : null;
 }
 
 function renderBoard(view, actions) {
@@ -152,8 +164,15 @@ function renderBoard(view, actions) {
       tile.append(make('span', piece.revealed ? 'piece-symbol' : 'seal', piece.revealed ? SYMBOLS[piece.type] : '✦'));
       if (piece.count === 2) tile.append(make('span', 'stack-count', '×2'));
       if (piece.type === 'king' && view.check[piece.owner]) { cell.classList.add('in-check'); label += ', in check'; }
-      if (!pending && piece.revealed && ((['reveal', 'challenge'].includes(lastAction?.kind) && lastAction.to === square) || lastAction?.scout === square)) tile.classList.add('just-revealed');
+      const origin = pending ? null : arrivalOrigin(animateAction, square);
+      if (origin !== null) {
+        tile.style.setProperty('--dx', colOf(origin) - colOf(square));
+        tile.style.setProperty('--dy', rowOf(origin) - rowOf(square));
+        tile.classList.add(animateAction.kind === 'reveal' ? 'slide-flip' : 'slide-in');
+        cell.classList.add('arriving');
+      } else if (!pending && piece.revealed && ((animateAction?.kind === 'challenge' && animateAction.to === square) || animateAction?.scout === square)) tile.classList.add('just-revealed');
       cell.append(tile);
+      if (origin !== null && animateAction.captured) cell.append(make('span', 'chomp'));
     }
     cell.setAttribute('aria-label', label);
     cell.addEventListener('click', () => clickSquare(square));
@@ -248,6 +267,109 @@ function renderArmies(view) {
   }
 }
 
+const OWEN_TOASTS = {
+  crown: event => ['👑', `Crown for Player ${event.player}!`],
+  'nuh-uh': () => ['NUH-UH!', 'Owen changed his mind.'],
+  bored: () => ['🥱', 'Owen got bored.'],
+  redraw: event => ['🙅', `“Not fair!” says Player ${event.player}.`],
+  lock: event => ['🤙', `Pinky promise with Player ${event.player}!`]
+};
+
+// One playful announcement per action. It never blocks the board.
+function showOwenToast(chaos) {
+  const event = chaos.events[0];
+  const toast = $('#owen-toast');
+  const [mark, headline] = event.final ? ['👑', `Player ${event.player} wins Owen’s game!`] : OWEN_TOASTS[event.type](event);
+  const detail = event.final ? `${chaos.crownsToWin} crowns. Owen is very proud.` : event.type === 'lock' ? `${chaos.goal.title} stays put.` : `New goal: ${chaos.goal.icon} ${chaos.goal.title}`;
+  const card = make('div', `owen-toast-card kind-${event.type}${event.final ? ' final' : ''}`);
+  card.append(make('span', event.type === 'nuh-uh' ? 'toast-stamp' : 'toast-mark', mark), make('strong', '', headline), make('span', 'toast-detail', detail));
+  if (event.robbed?.length) card.append(make('span', 'toast-token', `🙅 Not Fair token for ${event.robbed.map(p => `Player ${p}`).join(' & ')}`));
+  toast.replaceChildren(card);
+  toast.className = 'owen-toast';
+  void toast.offsetWidth; // Restart the animation when two announcements arrive back to back.
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  if (event.final) return celebrate();
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+}
+
+function celebrate() {
+  const confetti = make('div', 'confetti');
+  confetti.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 36; i++) {
+    const bit = make('span', '', ['👑', '⭐', '🎉', '✨'][i % 4]);
+    bit.style.setProperty('--x', `${Math.random() * 100}%`);
+    bit.style.setProperty('--delay', `${Math.random() * 1.2}s`);
+    bit.style.setProperty('--spin', `${Math.random() * 720 - 360}deg`);
+    confetti.append(bit);
+  }
+  $('.board-frame').append(confetti);
+  setTimeout(() => confetti.remove(), 5000);
+}
+
+function crownSlots(chaos, before, player) {
+  const slots = make('span', 'crown-slots');
+  for (let i = 0; i < chaos.crownsToWin; i++) {
+    const won = i < chaos.crowns[player];
+    slots.append(make('span', `crown${won ? ' won' : ''}${won && before && i >= before.crowns[player] ? ' pop' : ''}`, '👑'));
+  }
+  slots.setAttribute('aria-label', `${chaos.crowns[player]} of ${chaos.crownsToWin} crowns`);
+  return slots;
+}
+
+function owenMood(chaos) {
+  if (chaos.locked) return ['locked', `🤙 Pinky promise: this goal stays until Player ${chaos.lockedBy}’s next turn ends.`];
+  if (chaos.near[1] || chaos.near[2]) return ['nervous', `😬 Someone is one step away! When the turn passes, Owen might say “Nuh-uh!” (${Math.round(chaos.nuhUhChance * 100)}% chance).`];
+  if (chaos.turnsLeft <= 1) return ['yawning', '🥱 Owen is yawning… new goal after this turn.'];
+  return [chaos.turnsLeft <= 3 ? 'yawning' : '', `Owen gets bored in ${chaos.turnsLeft} turns.`];
+}
+
+function renderOwen(view, actions) {
+  const chaos = view.chaos;
+  const panel = $('#owen-panel');
+  panel.hidden = !chaos;
+  $('#mode-badge').hidden = !chaos;
+  document.body.classList.toggle('owen-mode', Boolean(chaos));
+  if (!chaos) { prevChaos = null; return; }
+  const before = prevChaos;
+  prevChaos = chaos;
+  const sameGoal = before?.goal.id === chaos.goal.id;
+  panel.replaceChildren();
+  const heading = make('div', 'panel-heading owen-heading');
+  heading.append(make('p', 'eyebrow', 'OWEN’S SILLY GOAL'), make('span', 'micro-label', chaos.goal.tally ? 'COUNTS FROM NOW' : 'ON THE BOARD'));
+  const card = make('div', `goal-card${before && !sameGoal ? ' goal-new' : ''}`);
+  const words = make('div');
+  words.append(make('h2', '', chaos.goal.title), make('p', '', chaos.goal.text));
+  card.append(make('span', 'goal-icon', chaos.goal.icon), words);
+
+  const scores = make('div', 'goal-scores');
+  const fills = [];
+  for (const player of [1, 2]) {
+    const row = make('div', `goal-row${chaos.near[player] ? ' near' : ''}`);
+    const track = make('span', 'goal-track');
+    const fill = make('span', `goal-fill p${player}`);
+    fill.style.width = `${100 * (sameGoal ? before.progress[player] : 0) / chaos.goal.target}%`;
+    fills.push([fill, `${100 * chaos.progress[player] / chaos.goal.target}%`]);
+    track.append(fill);
+    const tokens = make('span', `tokens${before && chaos.tokens[player] > before.tokens[player] ? ' pop' : ''}`, chaos.tokens[player] ? `🙅×${chaos.tokens[player]}` : '');
+    tokens.title = 'Not Fair tokens';
+    row.append(make('span', `player-dot p${player}`), make('span', 'goal-name', `P${player}`), track, make('span', 'goal-count', `${chaos.progress[player]}/${chaos.goal.target}`), crownSlots(chaos, before, player), tokens);
+    row.setAttribute('aria-label', `Player ${player}: ${chaos.progress[player]} of ${chaos.goal.target}, ${chaos.crowns[player]} crowns, ${chaos.tokens[player]} Not Fair tokens${chaos.near[player] ? ', one step away' : ''}`);
+    scores.append(row);
+  }
+  const [moodClass, moodText] = owenMood(chaos);
+  panel.append(heading, card, scores, make('p', `owen-mood ${moodClass}`, moodText));
+
+  const spend = actions.filter(a => a.kind.startsWith('goal-'));
+  if (spend.length) {
+    const buttons = make('div', 'owen-buttons');
+    for (const action of spend) buttons.append(button(action.kind === 'goal-redraw' ? '🙅 Not fair! New goal' : '🤙 Pinky promise', () => perform(action), 'button owen-button'));
+    panel.append(buttons, make('p', 'owen-note', 'Spend a Not Fair token: get a new goal, or lock this one until your next turn ends. Free, one per turn.'));
+  }
+  void panel.offsetWidth; // Paint the old progress first so the bars grow.
+  for (const [fill, width] of fills) fill.style.width = width;
+}
+
 function render() {
   const view = publicView(game);
   const actions = getLegalActions(game);
@@ -261,12 +383,15 @@ function render() {
     : `Reveal ${view.rules.exposure.mode === 'right-empty' ? '→' : '↔'} · Pawns ${forwardArrow}`;
   const status = $('#status');
   status.className = `status${view.result ? ' finished' : view.check[view.currentPlayer] ? ' check' : ''}`;
-  status.textContent = view.result ? `${view.result.winner ? `Player ${view.result.winner} wins` : 'Draw'} · ${view.result.reason}` : view.response ? `${view.response.reason} ${view.preparation ? 'No escape: take one preparation action before adjudication.' : 'You have an immediate action to get out of check.'}` : view.check[view.currentPlayer] ? 'Your king is in check. Your next action must make it safe.' : 'Slide an exposed tile to reveal it, or move a revealed piece.';
+  status.textContent = view.result ? `${view.result.winner ? `Player ${view.result.winner} wins` : 'Draw'} · ${view.result.reason}` : view.response ? `${view.response.reason} ${view.preparation ? 'No escape: take one preparation action before adjudication.' : 'You have an immediate action to get out of check.'}` : view.check[view.currentPlayer] ? 'Your king is in check. Your next action must make it safe.' : view.chaos ? 'Finish Owen’s goal for a crown, or checkmate to win outright. Slide a tile to reveal it, or move a revealed piece.' : 'Slide an exposed tile to reveal it, or move a revealed piece.';
   if (!view.result && view.bonusRevealPending) status.textContent = 'Bonus reveal · Slide one more hidden tile to reveal it, or skip to end your turn.';
   if (pending) status.textContent = 'Action preview · Choose an optional bonus below, or cancel to return to the position. Your turn has not ended.';
   renderSelection(view, actions); // Establish the selected mode before highlights.
   renderBoard(planView(view), actions);
   renderArmies(view);
+  renderOwen(view, actions);
+  if (view.chaos?.events.length && animateAction) showOwenToast(view.chaos);
+  animateAction = null;
   $('#history-count').textContent = `${view.actionNumber} ACTION${view.actionNumber === 1 ? '' : 'S'}`;
   const history = $('#history'); history.replaceChildren();
   if (!view.history.length) {
@@ -277,7 +402,8 @@ function render() {
   for (const item of view.history.slice(-12).reverse()) {
     const li = make('li');
     const description = make('span');
-    description.append(make('strong', '', `P${item.player} `), document.createTextNode(item.text));
+    if (item.player) description.append(make('strong', '', `P${item.player} `), document.createTextNode(item.text));
+    else description.append(make('strong', 'owen-name', 'Owen '), document.createTextNode(item.text.replace(/^Owen: /, '')));
     li.append(make('span', 'history-number', String(item.number).padStart(2, '0')), description);
     history.append(li);
   }
@@ -293,6 +419,9 @@ function showHandoff() {
 
 function startGame(rules = game.rules) {
   game = createGame(rules); selected = null; lastAction = null; pending = null; mode = 'move'; focusSquare = 32;
+  animateAction = null; prevChaos = null; clearTimeout(toastTimer);
+  $('#owen-toast').className = 'owen-toast';
+  document.querySelector('.confetti')?.remove();
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
   document.body.classList.remove('privacy-on');
   render();
@@ -308,6 +437,7 @@ function showRules() {
     ['05 / The king has a chance', 'Kings are never captured. Hidden kings cannot be checked. When a king is revealed in check, its owner immediately receives one response action before checkmate is judged. A challenge that uncovers an attack on your own king also gives you a response. If both kings are attacked, the challenging player responds first. If no safe response exists, take one preparation action; remaining in check afterward loses.'],
     ['06 / Finish the game', 'Checkmate wins. A player with no legal actions and no check draws. Three identical positions with the same player and action allowance draw, as do 100 actions without a reveal, capture, pawn move, stack, or unstack. Turns switch immediately by default. Enable “Pass-device screen between turns” beside the board if you want a privacy pause; you can toggle it during a game. This prototype does not save games; refreshing starts a new one.']
   ];
+  if (rules.chaos.enabled) blocks.unshift(['00 / Owen’s Rules', `This game was invented by a 4-year-old, so the way to win keeps changing. Owen picks a silly goal, such as “Get 4 of your pieces into the other team’s half.” The first player to finish it gets a crown, and Owen picks a new goal. Goals marked “counts from now” only count what happens after they appear. First to ${rules.chaos.crownsToWin} crowns wins, and checkmate still wins instantly. Owen gets bored after ${rules.chaos.boredTurns} turns and picks a new goal; the countdown is always shown. When someone is one step away, each time the turn passes there is a ${Math.round(rules.chaos.nuhUhChance * 100)}% chance Owen says “Nuh-uh!” and changes the goal. Whenever a goal is taken away from someone one step from finishing, they get a Not Fair token (up to ${rules.chaos.maxTokens}). On your turn, spend one for free: “Not fair!” draws a new goal, or “Pinky promise” locks the goal until your next turn ends. One token per turn. Owen never picks a goal that someone has already nearly finished.`]);
   const container = $('#rules-content'); container.replaceChildren();
   for (const [title, text] of blocks) { const block = make('section', 'rule-block'); block.append(make('h3', '', title), make('p', '', text)); container.append(block); }
   $('#rules-dialog').showModal();
@@ -330,6 +460,7 @@ $('#confirm-restart').addEventListener('click', () => startGame());
 for (const close of document.querySelectorAll('[data-close]')) close.addEventListener('click', () => document.getElementById(close.dataset.close).close());
 $('#settings-button').addEventListener('click', () => {
   const form = $('#settings-form');
+  form.elements.gameMode.value = game.rules.chaos.enabled ? 'owen' : 'classic';
   form.elements.exposure.value = game.rules.exposure.mode;
   form.elements.actions.value = game.rules.turn.actionsPerTurn;
   form.elements.freeReveal.checked = !game.rules.turn.revealCostsAction;
@@ -351,6 +482,6 @@ $('#settings-form').addEventListener('submit', event => {
   const data = new FormData(event.currentTarget);
   const stack = { enabled: data.has('stacking') };
   for (const key of ['anyAdjacent', 'stackAndStep', 'scouting']) stack[key] = event.currentTarget.elements[key].checked;
-  startGame({ exposure: { mode: data.get('exposure') }, turn: { actionsPerTurn: Number(data.get('actions')), revealCostsAction: !data.has('freeReveal'), bonusReveal: event.currentTarget.elements.bonusReveal.checked }, stack });
+  startGame({ exposure: { mode: data.get('exposure') }, turn: { actionsPerTurn: Number(data.get('actions')), revealCostsAction: !data.has('freeReveal'), bonusReveal: event.currentTarget.elements.bonusReveal.checked }, stack, chaos: { enabled: data.get('gameMode') === 'owen' } });
 });
 render();

@@ -12,20 +12,21 @@
   <div class="page-shell">
     <header class="site-header">
       <a class="brand" href="./" aria-label="Veiled Crowns home"><span class="brand-mark" aria-hidden="true">♚</span><span>Veiled Crowns<small>A GAME OF DISCOVERY</small></span></a>
-      <div class="header-actions"><span class="version">LOCAL PLAY <span>·</span> V0.5.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
+      <div class="header-actions"><span class="version">LOCAL PLAY <span>·</span> V0.6.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
     </header>
 
     <main>
       <div class="intro"><div><p class="eyebrow">THE ARMY IS A MYSTERY. THE STRATEGY IS YOURS.</p><h1>Uncover your next move.</h1></div><p>Two players. Thirty-two hidden tiles.<br>A familiar board with unfamiliar possibilities.</p></div>
       <div class="play-area">
         <section class="board-section" aria-label="Game board and turn status">
-          <div class="turn-bar"><div class="turn-player"><span id="turn-dot" class="player-dot p1"></span><div><strong id="turn-title"></strong><span id="turn-subtitle"></span></div></div><span id="turn-count" class="turn-count"></span></div>
+          <div class="turn-bar"><div class="turn-player"><span id="turn-dot" class="player-dot p1"></span><div><strong id="turn-title"></strong><span id="turn-subtitle"></span></div></div><div class="turn-tags"><span id="mode-badge" class="mode-badge" hidden>OWEN’S RULES</span><span id="turn-count" class="turn-count"></span></div></div>
           <div id="status" class="status" role="status" aria-live="polite"></div>
-          <div class="board-frame"><div class="board-surround"><div id="rank-labels" class="rank-labels" aria-hidden="true"></div><div id="board" class="board" role="group" aria-label="Chessboard. Select a hidden tile to see its legal reveal destinations. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. Use arrow keys to navigate."></div><div id="file-labels" class="file-labels" aria-hidden="true"></div></div></div>
+          <div class="board-frame"><div id="owen-toast" class="owen-toast" role="status" aria-live="polite"></div><div class="board-surround"><div id="rank-labels" class="rank-labels" aria-hidden="true"></div><div id="board" class="board" role="group" aria-label="Chessboard. Select a hidden tile to see its legal reveal destinations. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. Use arrow keys to navigate."></div><div id="file-labels" class="file-labels" aria-hidden="true"></div></div></div>
           <div class="board-footer"><span><i class="legend-ring"></i> Can reveal</span><span><i class="legend-dot"></i> Legal action</span><span id="direction-label">Player 1 moves ↑</span></div>
         </section>
 
         <aside class="sidebar" aria-label="Game controls">
+          <section id="owen-panel" class="panel owen-panel" aria-label="Owen’s silly goal" hidden></section>
           <section class="panel action-panel"><p class="eyebrow">YOUR NEXT ACTION</p><div id="selection"></div><div id="action-modes" class="action-modes"></div><div id="action-buttons" class="action-buttons"></div><p id="action-hint" class="muted"></p></section>
           <section class="panel armies-panel"><div class="panel-heading"><h2>The armies</h2><span class="micro-label">REVEALED / REMAINING</span></div><div id="armies"></div></section>
           <section class="panel history-panel"><div class="panel-heading"><h2>At the table</h2><span id="history-count" class="micro-label">0 ACTIONS</span></div><ol id="history" class="history" aria-label="Public action history"></ol></section>
@@ -39,9 +40,10 @@
 
   <dialog id="handoff" class="handoff-dialog" aria-labelledby="handoff-title" aria-describedby="handoff-copy"><div id="handoff-mark" class="handoff-mark p1" aria-hidden="true">♚</div><p class="eyebrow">A MOMENT BETWEEN MOVES</p><h2 id="handoff-title"></h2><p id="handoff-copy">Pass the device. Hidden identities stay unknown to both players until a tile is revealed.</p><button id="ready-button" class="button primary wide"></button><p class="dialog-footnote">Share the board. Keep the mystery.</p></dialog>
 
-  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.5.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
+  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.6.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
 
   <dialog id="settings-dialog" class="info-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><p class="eyebrow">THE PLAYTEST LAB</p><button class="icon-button" data-close="settings-dialog" aria-label="Close playtest rules">×</button></div><h2 id="settings-title">Try a different rhythm.</h2><p class="muted">These rules apply to a new randomized game. Starting it replaces the current game.</p><form id="settings-form">
+    <label class="field">Game mode<select name="gameMode"><option value="classic">Veiled Crowns · checkmate wins</option><option value="owen">Owen’s Rules · the goal keeps changing</option></select><small>Owen’s Rules: finish Owen’s silly goal to earn a crown. First to 3 crowns wins, and checkmate still wins instantly. Owen gets bored and changes the goal, and might say “Nuh-uh!” when someone gets close.</small></label>
     <label class="field">Opening reveal move<select name="exposure"><option value="flexible">1–4 right, or 1 forward or left</option><option value="right-empty">Classic: one square right</option><option value="either-horizontal">Classic: one square left or right</option></select><small>Slide along a clear path into an empty square, then flip. Forward is ↑ for Player 1 and ↓ for Player 2. Distance does not add actions.</small></label>
     <label class="field">Actions per turn<select name="actions"><option value="1">1 action · original prototype</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
     <label class="check-field"><input type="checkbox" name="freeReveal"> Slide-and-reveal is free (unlimited)</label>

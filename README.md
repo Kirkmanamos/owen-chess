@@ -1,4 +1,4 @@
-# Veiled Crowns — Version 0.5.0
+# Veiled Crowns — Version 0.6.0
 
 A playable local two-player prototype of a hidden-army strategy game. The title is a working name. The rules are deliberately experimental.
 
@@ -53,6 +53,18 @@ The normal action can itself be a reveal, so a one-action turn can uncover two t
 
 The bonus is once per turn, even with two or three normal actions, and combines with all three stack experiments. **Slide-and-reveal is free (unlimited)** supersedes it; that setting disables the bonus checkbox while retaining its choice. Applying playtest settings starts a new game, and **New game** retains the rules. Queen movement remains unchanged.
 
+### Owen's Rules (Version 0.6)
+
+The original game was invented by a 4-year-old, so the way to win keeps changing. Choose **Game mode → Owen's Rules** in **Playtest rules**. The classic mode is unchanged and remains the default.
+
+- **Silly goals.** Owen picks one of 13 goals, such as *Sleepover!* (4 pieces in the other team's half), *Parade Time* (6 pieces on one row), *Snack Attack* (eat 8 points of pieces), or *Hug the Board* (touch all four edges). Finishing it earns a **crown**, and Owen picks a new goal. **First to 3 crowns wins.** Checkmate still wins instantly.
+- **Owen gets bored.** After 12 turns he swaps the goal. The countdown is always shown.
+- **"Nuh-uh!"** When someone is one step away, each time the turn passes there is a 40% chance Owen changes the goal.
+- **Not Fair tokens.** If a goal is taken away while you are one step from finishing it, you get a token (maximum 3). Spend one per turn, for free: **Not fair!** draws a new goal, and **Pinky promise** locks the goal until your next turn ends.
+- **Fairness guardrails.** Owen never picks a goal someone has already nearly finished. Goals marked *counts from now* start both players at zero. Progress reads only public information.
+
+Announcements pop up over the board without blocking it. Goal cards flip in, progress bars grow, crowns and tokens pop, the countdown yawns, and a near-complete bar shakes. Moving tiles slide to their squares, reveals slide and then flip, and captures flash. The tuning values live in `rules.chaos` (`crownsToWin`, `boredTurns`, `nuhUhChance`, `maxTokens`).
+
 ## Architecture
 
 | File | Responsibility |
@@ -67,10 +79,12 @@ The bonus is once per turn, even with two or three normal actions, and combines 
 | `src/rules/king.js` | Check and newly exposed king detection |
 | `src/rules/turn.js` | Action costs and turn allowance |
 | `src/rules/outcome.js` | Checkmate, stalemate, repetition, and quiet-action draws |
+| `src/rules/chaos.js` | Owen's Rules: goal deck, crowns, boredom, Nuh-uh, Not Fair tokens, seeded randomness |
 | `src/main.js` | DOM rendering and input; no movement-rule implementations |
 | `tests/engine.test.js` | Rule scenarios, privacy invariants, and material conservation |
 | `tests/exposure.test.js` | Reveal distances, blockers, player directions, promotion, privacy and king responses |
 | `tests/stack-experiments.test.js` | All eight experiment combinations, compound actions, scouting privacy and king responses |
+| `tests/owen-rules.test.js` | Goal completion, tallies, Nuh-uh, boredom, tokens, locks, privacy and seeded replay |
 | `tests/bonus-reveal.test.js` | Bounded reveal turns, skipping, check responses, privacy, stacking interactions and seeded play |
 
 The engine exports `createGame(overrides, random)`, `getLegalActions(state)`, `applyAction(state, action)`, and `publicView(state)`. All actions are validated by the engine. `applyAction` returns a new state and never mutates the supplied one. An injectable random function supports deterministic tests.

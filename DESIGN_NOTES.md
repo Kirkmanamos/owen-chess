@@ -1,4 +1,4 @@
-# Design notes — Version 0.5.0
+# Design notes — Version 0.6.0
 
 This is an evolving original game, not a chess rules implementation with a decorative hidden mode. Hidden identities, directional emergence, randomized armies, and pawn stacks are central. “Veiled Crowns” is only a working title.
 
@@ -82,6 +82,26 @@ All three toggles start **off**, may be combined freely, and require stack enabl
 - With two or three normal actions, there is still only one bonus after the final action. Choosing **End turn** early declines any unused actions and the bonus. The bonus allowance is never saved across turns.
 - Unlimited free reveals supersede this experiment. The settings UI disables the bonus checkbox while retaining its choice, and the engine treats it as inactive. All stack experiments remain independently compatible; stack scouting reveals an enemy, while this bonus reveals one of your own hidden tiles.
 - The bonus phase is explicit public turn state and part of repetition detection. Legal highlights and bonus availability use only public occupancy and revealed attacks, never secret identities.
+
+### Owen's Rules (Version 0.6)
+
+The game was originally designed by a 4-year-old who changed the rules on the fly. Owen's Rules keeps that spirit. Its chaos decides **what** happens, but players always see it coming and never lose everything. `chaos.enabled` is off by default; it is selected as a game mode.
+
+- **Taming principles.** (1) Announce before it bites: a visible boredom countdown and a "nervous" warning when anyone is close. (2) Progress survives: crowns are permanent, and a yanked goal pays a Not Fair token. (3) Bounded: 13 goals, at most 3 tokens, and one token spend per turn.
+- **Goals** are either *board* goals, which read the current position, or *tally* goals, which count public events after the goal appears. Goals were sized after feedback that "3 captures" or "a stack of 3" would finish almost immediately.
+- **Winning.** Finishing the current goal awards a crown and draws a new one at once. If an action completes the goal for both players, the actor wins it. First to `crownsToWin` (3) wins; checkmate wins instantly, as before.
+- **Changes happen only as the turn passes.** If anyone is one step away (`near`, usually target − 1), roll `nuhUhChance` (0.4). Otherwise, if `boredTurns` (12) have elapsed, change the goal for boredom.
+- **Draw rule.** Owen never picks the current goal, prefers goals not seen in the last four, and never picks a board goal that either player is already one step from finishing. `twins` needs stacking enabled.
+- **Not Fair tokens.** Whenever a goal is changed by Nuh-uh, boredom, or the opponent's redraw, every player one step from finishing it gets a token. Redrawing your own goal refunds nothing. Spending is a free side action, one per turn, and never unlocks End turn or spends an action. *Pinky promise* blocks every change except winning through the opponent's turn and your next.
+- **Randomness** comes from a mulberry32 seed stored in the state, drawn after the army shuffle. Transitions stay pure and replayable, and seeded armies are identical with the mode on or off.
+- **Stalemate and checkmate** are judged on board actions only, so token actions never keep a stuck position alive.
+
+#### Planned next (step 2: the Toy Box and the Recipe Book)
+
+- Captured enemy pieces go to your Toy Box and can be stacked onto your own pieces. Stacks can mix any types, up to 3 high.
+- Known recipes plus Mystery Mixes: an unknown combination rolls a random power the first time, then is written into a public Recipe Book for the rest of the game. Mixed-color stacks roll from a wilder pool.
+- **Triple stacks of one type are extra special,** each with its own signature power (for example three knights or three rooks).
+- Every new move and power needs its own animation.
 
 ## Temporary assumptions
 
