@@ -105,7 +105,7 @@ function changeGoal(state, reason, player = null) {
   for (const p of robbed) chaos.tokens[p] = Math.min(state.rules.chaos.maxTokens, chaos.tokens[p] + 1);
   const goal = drawGoal(state);
   chaos.events.push({ type: reason, player, robbed, goal: goal.id });
-  const lead = { 'nuh-uh': 'Nuh-uh! I changed my mind.', bored: 'I’m bored of that one.', redraw: `Not fair? Okay, Player ${player} gets a new goal.` }[reason];
+  const lead = { 'nuh-uh': 'No! You play like this!', bored: 'I’m bored of that one.', redraw: `Not fair? Okay, Player ${player} gets a new goal.` }[reason];
   owen(state, `${lead} New goal: ${goal.title}.${robbed.length ? ` Not Fair token for ${robbed.map(p => `Player ${p}`).join(' and ')}.` : ''}`);
 }
 

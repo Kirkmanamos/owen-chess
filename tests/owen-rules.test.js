@@ -60,7 +60,7 @@ test('tally goals count only events after the goal appears, and reaching the cro
   assert.equal(next.chaos.events.find(e => e.type === 'crown').final, true);
 });
 
-test('a near player can be robbed by Nuh-uh as the turn passes, and earns a Not Fair token', () => {
+test('a near player can be robbed by “No! You play like this!” as the turn passes, and earns a Not Fair token', () => {
   const entries = { ...kings, a5: piece('rook'), b5: piece('rook'), c5: piece('knight'), g1: piece('bishop'), a8: piece('rook', 2) };
   const robbed = act(position(entries, 'sleepover', { nuhUhChance: 1 }), 'move', 'g1', 'h2');
   assert.notEqual(robbed.chaos.goal, 'sleepover');

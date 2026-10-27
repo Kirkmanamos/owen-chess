@@ -59,7 +59,7 @@ The original game was invented by a 4-year-old, so the way to win keeps changing
 
 - **Goals.** Owen picks one of 13 goals, such as *Sleepover!* (4 pieces in the other team's half), *Parade Time* (6 pieces on one row), *Snack Attack* (eat 8 points of pieces), or *Hug the Board* (touch all four edges). Finishing it earns a **crown**, and Owen picks a new goal. **First to 3 crowns wins.** Checkmate still wins instantly.
 - **Owen gets bored.** After 12 turns he swaps the goal. The countdown is always shown.
-- **"Nuh-uh!"** When someone is one step away, each time the turn passes there is a 40% chance Owen changes the goal.
+- **"No! You play like this!"** When someone is one step away, each time the turn passes there is a 40% chance Owen changes the goal.
 - **Not Fair tokens.** If a goal is taken away while you are one step from finishing it, you get a token (maximum 3). Spend one per turn, for free: **Not fair!** draws a new goal, and **Pinky promise** locks the goal until your next turn ends.
 - **Fairness guardrails.** Owen never picks a goal someone has already nearly finished. Goals marked *counts from now* start both players at zero. Progress reads only public information.
 
@@ -88,7 +88,7 @@ Announcements pop up over the board without blocking it. Goal cards flip in, pro
 | `src/rules/king.js` | Check and newly exposed king detection |
 | `src/rules/turn.js` | Action costs and turn allowance |
 | `src/rules/outcome.js` | Checkmate, stalemate, repetition, and quiet-action draws |
-| `src/rules/chaos.js` | Owen's Rules: goal deck, crowns, boredom, Nuh-uh, Not Fair tokens, capture rewards |
+| `src/rules/chaos.js` | Owen's Rules: goal deck, crowns, boredom, "No! You play like this!", Not Fair tokens, capture rewards |
 | `src/rules/powers.js` | Owen's stacks: any-piece stacking, Toy Box toys, recipes, power geometry and power actions |
 | `src/rules/random.js` | Seeded randomness stored in the game state |
 | `src/main.js` | DOM rendering and input; no movement-rule implementations |
@@ -96,7 +96,7 @@ Announcements pop up over the board without blocking it. Goal cards flip in, pro
 | `tests/exposure.test.js` | Reveal distances, blockers, player directions, promotion, privacy and king responses |
 | `tests/stack-experiments.test.js` | All eight experiment combinations, compound actions, scouting privacy and king responses |
 | `tests/owen-stacks.test.js` | Any-piece stacks, free first stack, recipes, triples, toys, pop-off and every special power |
-| `tests/owen-rules.test.js` | Goal completion, tallies, Nuh-uh, boredom, tokens, locks, privacy and seeded replay |
+| `tests/owen-rules.test.js` | Goal completion, tallies, goal swaps when someone is close, boredom, tokens, locks, privacy and seeded replay |
 | `tests/bonus-reveal.test.js` | Bounded reveal turns, skipping, check responses, privacy, stacking interactions and seeded play |
 
 The engine exports `createGame(overrides, random)`, `getLegalActions(state)`, `applyAction(state, action)`, and `publicView(state)`. All actions are validated by the engine. `applyAction` returns a new state and never mutates the supplied one. An injectable random function supports deterministic tests.
