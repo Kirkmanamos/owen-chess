@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sound Lab · Opening Arena</title>
+  <link rel="stylesheet" href="./src/styles.css">
+  <style>
+    .lab{max-width:760px;margin:36px auto 60px;padding:0 16px}
+    .rows{display:flex;flex-direction:column;gap:10px;margin:22px 0}
+    .row{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+    .row h2{font-size:17px;margin:0}
+    .row small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+    .choices{display:flex;flex-wrap:wrap;gap:6px}
+    .choice{border:1px solid #bfc8bb;background:#fff;border-radius:20px;padding:7px 12px;font-size:12px;font-weight:600}
+    .choice:hover{background:#eef0e6}
+    .choice[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:#fff}
+    .summary{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#fff;border:1px dashed #bfc8bb;border-radius:7px;padding:10px 12px;white-space:pre-wrap}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    @media(max-width:560px){.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="lab">
+    <p class="eyebrow">LOCAL TOOL · NOT PUBLISHED</p>
+    <h1>Sound Lab</h1>
+    <p class="muted">Click an option to hear it. The highlighted option in each row is the one the game uses, saved in this browser. Go back to the game to try your picks in context.</p>
+    <div id="rows" class="rows"></div>
+    <p class="eyebrow">YOUR PICKS</p>
+    <div id="summary" class="summary"></div>
+    <div class="toolbar"><a class="button primary" href="./">Back to the game</a><button id="reset" class="button" type="button">Reset to defaults</button></div>
+  </main>
+  <script type="module">
+    import { SOUND_EVENTS, soundOptions, getChoice, setChoice, resetChoices, preview } from './src/sound.js';
+    const WHEN = { select: 'Pick up a piece', move: 'A piece lands', capture: 'A capture', castle: 'Castling', check: 'Check or mate', correct: 'Right move in practice', wrong: 'Wrong move', hint: 'Asking for a hint', done: 'Line finished', mastered: 'Line mastered' };
+    const TITLES = { select: 'Select', move: 'Move', capture: 'Capture', castle: 'Castle', check: 'Check', correct: 'Correct', wrong: 'Wrong', hint: 'Hint', done: 'Finished', mastered: 'Mastered' };
+    function render() {
+      const rows = document.querySelector('#rows');
+      rows.replaceChildren();
+      for (const name of SOUND_EVENTS) {
+        const row = document.createElement('section');
+        row.className = 'row';
+        row.innerHTML = `<div><h2>${TITLES[name]}</h2><small>${WHEN[name]}</small></div><div class="choices"></div>`;
+        for (const option of soundOptions(name)) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'choice';
+          b.textContent = option.key === 'none' ? 'None' : `▶ ${option.label}`;
+          b.setAttribute('aria-pressed', String(getChoice(name) === option.key));
+          b.onclick = () => { setChoice(name, option.key); preview(name, option.key); render(); };
+          row.querySelector('.choices').append(b);
+        }
+        rows.append(row);
+      }
+      document.querySelector('#summary').textContent = SOUND_EVENTS.map(name => `${TITLES[name]}: ${soundOptions(name).find(o => o.key === getChoice(name)).label}`).join('\n');
+    }
+    document.querySelector('#reset').onclick = () => { resetChoices(); render(); };
+    render();
+  </script>
+</body>
+</html>

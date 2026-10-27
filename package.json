@@ -1,15 +1,15 @@
 {
-  "name": "veiled-crowns",
+  "name": "owens-rules",
   "version": "0.7.0",
   "private": true,
   "type": "module",
-  "description": "A local two-player hidden-army strategy game prototype",
+  "description": "Owen's Rules, a two-player hidden-army chess game, and Opening Arena, a chess openings trainer",
   "scripts": {
     "start": "node server.mjs",
     "dev": "node server.mjs",
     "build": "node scripts/build-site.mjs",
     "test": "node --test",
-    "check": "node --check src/main.js && node --check src/engine.js && node --test"
+    "check": "node --check src/main.js && node --check src/engine.js && node --check openings/src/main.js && node --test"
   },
   "engines": { "node": ">=20" }
 }
