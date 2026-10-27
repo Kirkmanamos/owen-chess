@@ -1,7 +1,7 @@
 import { otherPlayer, rowOf, colOf, index } from '../board.js';
 import { isInCheck } from './king.js';
 
-// Owen's Rules: the win condition is a silly goal that keeps changing. The
+// Owen's Rules: the win condition is a goal that keeps changing. The
 // chaos is tamed three ways: changes are telegraphed (a visible boredom
 // countdown and a "nervous" warning), crowns bank progress across goals, and a
 // yanked goal pays out a Not Fair token. Every input is public information, so
@@ -118,7 +118,7 @@ function changeGoal(state, reason, player = null) {
 export function createChaos(state, random) {
   state.chaos = {
     seed: Math.floor(random() * 4294967296) >>> 0, goal: null, goalTurn: 1, tally: { 1: 0, 2: 0 },
-    crowns: { 1: 0, 2: 0 }, tokens: { 1: 0, 2: 0 }, lockedUntil: 0, lockedBy: null, tokenTurn: 0, recent: [], events: []
+    crowns: { 1: 0, 2: 0 }, tokens: { 1: 0, 2: 0 }, lockedUntil: 0, lockedBy: null, tokenTurn: 0, sugarTurn: 0, recent: [], events: []
   };
   drawGoal(state);
 }
@@ -147,11 +147,35 @@ export function applyChaosAction(state, action) {
   return next;
 }
 
-// Runs after every ordinary action. `next` is already a fresh state whose
-// history array may be extended; chaos is copied before it changes.
+// Captured enemies go into the capturer's Toy Box. A big catch (anything but a
+// pawn) gives a Sugar Rush, one extra action at most once per turn, and every
+// fourth toy pays a Not Fair token. Returns whether to add the extra action.
+export const TOYS_PER_TOKEN = 4;
+export function captureRewards(before, next, action, actor) {
+  const toys = next.captured.slice(before.captured.length);
+  if (!next.chaos || !toys.length) return false;
+  const { chaos } = next;
+  const square = action.step ?? action.to;
+  chaos.events.push({ type: 'capture', player: actor, square, toys: toys.map(p => ({ type: p.type, count: p.count, owner: p.owner })) });
+  const earned = Math.floor(capturedBy(next, actor) / TOYS_PER_TOKEN) - Math.floor(capturedBy(before, actor) / TOYS_PER_TOKEN);
+  if (earned > 0 && chaos.tokens[actor] < next.rules.chaos.maxTokens) {
+    chaos.tokens[actor] = Math.min(next.rules.chaos.maxTokens, chaos.tokens[actor] + earned);
+    chaos.events.push({ type: 'toy-token', player: actor, square });
+    owen(next, `Player ${actor}'s Toy Box is full enough for a Not Fair token!`);
+  }
+  const sugar = toys.some(p => p.type !== 'pawn') && chaos.sugarTurn !== before.turnNumber;
+  if (sugar) {
+    chaos.sugarTurn = before.turnNumber;
+    chaos.events.push({ type: 'sugar', player: actor, square });
+    owen(next, `Sugar rush! Player ${actor} gets one more action.`);
+  }
+  return sugar;
+}
+
+// Runs after every ordinary action. The engine has already given `next` its own
+// chaos copy (with this action's capture events) and a fresh history array.
 export function updateChaos(before, next, action, actor) {
   if (!before.chaos) return null;
-  next.chaos = { ...structuredClone(before.chaos), events: [] };
   const { chaos } = next;
   const goal = GOAL[chaos.goal];
   if (goal.tally) chaos.tally[actor] += goal.tally(before, next, action, actor);

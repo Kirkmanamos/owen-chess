@@ -57,7 +57,7 @@ test('tally goals count only events after the goal appears, and reaching the cro
   const next = act(state, 'move', 'a1', 'a5');
   assert.equal(next.result.winner, 1);
   assert.match(next.result.reason, /Owen’s crowns/);
-  assert.equal(next.chaos.events[0].final, true);
+  assert.equal(next.chaos.events.find(e => e.type === 'crown').final, true);
 });
 
 test('a near player can be robbed by Nuh-uh as the turn passes, and earns a Not Fair token', () => {
@@ -145,4 +145,31 @@ test('seeded random play with Owen’s Rules stays legal and replayable', () => 
     return state;
   };
   for (const seed of [1, 2, 3, 4, 5]) assert.deepEqual(run(seed).chaos, run(seed).chaos);
+});
+
+test('a big catch gives one Sugar Rush per turn, and every fourth toy pays a Not Fair token', () => {
+  const state = position({ ...kings, a1: piece('rook'), a5: piece('knight', 2), c1: piece('rook'), c6: piece('bishop', 2), a8: piece('rook', 2) }, 'knock', { nuhUhChance: 0 });
+  state.captured = [piece('pawn', 2), piece('pawn', 2), piece('pawn', 2)];
+  const snapshot = structuredClone(state);
+  const rush = act(state, 'move', 'a1', 'a5');
+  assert.deepEqual(state, snapshot);
+  assert.equal(rush.currentPlayer, 1, 'the extra action keeps the turn');
+  assert.equal(rush.actionsLeft, 1);
+  assert.deepEqual(rush.chaos.events.map(e => e.type), ['capture', 'toy-token', 'sugar']);
+  assert.equal(rush.chaos.tokens[1], 1);
+  assert.deepEqual(rush.chaos.events[0].toys, [{ type: 'knight', count: 1, owner: 2 }]);
+  const second = act(rush, 'move', 'c1', 'c6');
+  assert.equal(second.currentPlayer, 2, 'only one Sugar Rush per turn');
+  assert.ok(!second.chaos.events.some(e => e.type === 'sugar'));
+  assert.equal(second.chaos.tokens[1], 1);
+});
+
+test('pawn captures fill the Toy Box without a Sugar Rush, and pawns stack with the pawn in front', () => {
+  const state = position({ ...kings, d4: piece('pawn'), e5: piece('pawn', 2), d3: piece('pawn') }, 'knock', { nuhUhChance: 0 });
+  const next = act(state, 'move', 'd4', 'e5');
+  assert.equal(next.currentPlayer, 2);
+  assert.deepEqual(next.chaos.events.map(e => e.type), ['capture']);
+  const stacking = getLegalActions(state).filter(a => a.kind === 'stack');
+  assert.ok(stacking.some(a => a.from === sq('d3') && a.to === sq('d4')));
+  assert.ok(!getLegalActions(position({ ...kings, d4: piece('pawn'), d3: piece('pawn') }, 'knock')).some(a => a.kind === 'stack' && a.from === sq('d4') && a.to === sq('d5')));
 });

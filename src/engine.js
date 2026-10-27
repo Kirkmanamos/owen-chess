@@ -7,7 +7,7 @@ import { combinationActions, stackExperiments } from './rules/pawn-stack.js';
 import { isInCheck, newlyCheckedKing } from './rules/king.js';
 import { actionCost, beginTurn, hasBonusReveal } from './rules/turn.js';
 import { evaluateOutcome, positionKey } from './rules/outcome.js';
-import { createChaos, chaosActions, applyChaosAction, updateChaos, publicChaos } from './rules/chaos.js';
+import { createChaos, chaosActions, applyChaosAction, captureRewards, updateChaos, publicChaos } from './rules/chaos.js';
 
 export function createGame(overrides = {}, random = Math.random) {
   const rules = createRules(overrides);
@@ -138,6 +138,7 @@ export function applyAction(state, requested) {
   if (action.kind.startsWith('goal-')) return applyChaosAction(state, action);
   const actor = state.currentPlayer;
   const next = changeBoard(state, action);
+  if (state.chaos) next.chaos = { ...structuredClone(state.chaos), events: [] };
   next.bonusRevealPending = false;
   next.actionNumber += 1;
   next.turnActivity = true;
@@ -150,7 +151,6 @@ export function applyAction(state, requested) {
   // A preparation action is an actual opportunity, not indefinite immunity.
   if (state.response && isInCheck(next, actor)) {
     next.response = null;
-    if (next.chaos) next.chaos = { ...next.chaos, events: [] };
     next.result = { winner: otherPlayer(actor), reason: 'Checkmate after the king response' };
     return next;
   }
@@ -170,6 +170,7 @@ export function applyAction(state, requested) {
     next.actionsLeft = 1;
   } else {
     next.actionsLeft -= state.bonusRevealPending ? 0 : actionCost(action, state.rules);
+    if (captureRewards(state, next, action, actor)) next.actionsLeft += 1;
     if (state.response || state.bonusRevealPending || action.kind === 'end-turn' || isInCheck(next, otherPlayer(actor))) {
       switchTurn(next, otherPlayer(actor));
     } else if (next.actionsLeft <= 0) {

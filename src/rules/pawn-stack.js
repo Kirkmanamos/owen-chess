@@ -22,7 +22,8 @@ export function combinationActions(state, from) {
   const piece = state.board[from];
   if (piece?.type !== 'pawn' || !piece.revealed) return [];
   if (piece.count === 1) {
-    const directions = state.rules.stack.anyAdjacent ? AROUND : [[0, -1], [0, 1]];
+    // Owen's Rules always lets you stack with the pawn in front of you, too.
+    const directions = state.rules.stack.anyAdjacent || state.rules.chaos.enabled ? AROUND : [[0, -1], [0, 1]];
     return directions.flatMap(([dr, dc]) => {
       const to = offset(from, dr, dc);
       const partner = state.board[to];

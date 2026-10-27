@@ -96,9 +96,18 @@ The game was originally designed by a 4-year-old who changed the rules on the fl
 - **Randomness** comes from a mulberry32 seed stored in the state, drawn after the army shuffle. Transitions stay pure and replayable, and seeded armies are identical with the mode on or off.
 - **Stalemate and checkmate** are judged on board actions only, so token actions never keep a stuck position alive.
 
-#### Planned next (step 2: the Toy Box and the Recipe Book)
+- **Captures (Version 0.6.1).** Every captured enemy goes into the capturer's Toy Box. A non-pawn catch gives a Sugar Rush (+1 action), tracked by `sugarTurn` so it happens at most once per turn. It is skipped for king responses, and giving check still ends the turn. Every `TOYS_PER_TOKEN` (4) toys pays a Not Fair token, up to the cap. In Owen's Rules, pawns stack with any adjacent pawn (always-on any-adjacent stacking).
+- **Unicorns.** In Owen's Rules every knight is drawn as the usual knight glyph plus a CSS horn in the same color, and named a unicorn. This is presentation only: the engine type stays `knight`, and movement is unchanged. Step 2 recipe names must not reuse "Unicorn" for a combination.
+- **Name.** The mode is called "Owen's Rules", never "Owen's Silly Rules".
 
-- Captured enemy pieces go to your Toy Box and can be stacked onto your own pieces. Stacks can mix any types, up to 3 high.
+#### Planned next
+
+- **Hex time (event):** Owen announces it one turn ahead. The board morphs into hex tiles for a few turns with six-direction movement on the same 64 cells, then morphs back.
+
+#### Step 2: the Toy Box and the Recipe Book
+
+- Toy Box pieces (already collected) can be stacked onto your own pieces. Stacks can mix any types, up to 3 high, including a queen with a knight and pieces directly in front of you.
+- A new power must be obvious the moment it appears: a reveal animation, a name and icon on the stack, and the move highlights shown right away.
 - Known recipes plus Mystery Mixes: an unknown combination rolls a random power the first time, then is written into a public Recipe Book for the rest of the game. Mixed-color stacks roll from a wilder pool.
 - **Triple stacks of one type are extra special,** each with its own signature power (for example three knights or three rooks).
 - Every new move and power needs its own animation.
