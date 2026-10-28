@@ -78,3 +78,12 @@
 .owen-button.wide{width:100%;justify-content:flex-start}
 @media(prefers-reduced-motion:reduce){.square.power-preview::before{opacity:1}}
 .recipe-list{max-height:176px;overflow:auto;margin-right:-6px;padding-right:6px}
+/* Action keeper: one token per action this turn, under the board. */
+.action-keeper{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:14px;padding:12px 16px;border-radius:16px;background:#fff;border:2px solid var(--line);box-shadow:0 4px 0 var(--line)}.action-keeper.p1{border-color:#e6cc98;box-shadow:0 4px 0 #e6cc98}.action-keeper.p2{border-color:#a9c4b9;box-shadow:0 4px 0 #a9c4b9}
+.keeper-title{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}.keeper-tokens{display:flex;gap:7px}.keeper-count{font-size:15px}
+.keeper-token{width:26px;height:26px;border-radius:50%;border:3px solid #0002;box-shadow:inset 0 -4px 0 #0002,0 2px 0 #0002;transition:transform .25s,opacity .25s}.keeper-token.p1{background:#e3b45c}.keeper-token.p2{background:#4d8a79}
+.keeper-token.spent{background:transparent;border-style:dashed;box-shadow:none;opacity:.55;transform:scale(.8)}.keeper-token.fresh{animation:token-pop .45s cubic-bezier(.3,1.6,.5,1)}
+.keeper-extras{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}.keeper-chip{font-size:11px;font-weight:600;padding:5px 9px;border-radius:20px;background:#fff6e4;border:1px solid var(--owen-line);color:#8a3d1c}.keeper-chip.warm{background:#eaf4ff;border-color:#a9c8e8;color:#25507a}
+@keyframes token-pop{from{transform:scale(0) rotate(-90deg)}to{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.keeper-token.fresh{animation:none}}
+@media(max-width:680px){.action-keeper{padding:10px 12px;gap:8px 10px}.keeper-token{width:22px;height:22px}.keeper-extras{margin-left:0}}

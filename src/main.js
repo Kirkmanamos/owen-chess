@@ -17,8 +17,10 @@ const MOVEMENT_HELP = {
   pawn: 'One square forward; capture one square diagonally forward. Promote to a queen on the far rank.'
 };
 // Owen's Rules is the only game mode, so every game starts with chaos on.
+// Fast start: each player's first turn has 3 actions, the second has 2.
 const OWENS_RULES = { chaos: { enabled: true } };
-let game = createGame(OWENS_RULES);
+const FAST_START = [3, 2];
+let game = createGame({ ...OWENS_RULES, turn: { openingRamp: FAST_START } });
 let selected = null;
 let mode = 'move';
 let lastAction = null;
@@ -28,6 +30,7 @@ let animateAction = null; // The action whose arrival animates on the next rende
 let prevChaos = null; // Last rendered goal state, to animate what changed.
 let toastTimer = null;
 let prevToys = null; // Toy Box sizes at the last render, so new toys pop in.
+let keeperTurn = null; // { key, total, left }: this turn's tokens, so spent ones still show.
 let powerPreview = null; // { square, until }: sparkle where a brand-new power can reach.
 const CAPTURE_SPRITES = {
   pawn: ['CHOMP!', '#c0602d'], knight: ['NEIGH!', '#7b4fb6'], bishop: ['ZAP!', '#2f7fb8'], rook: ['CRASH!', '#a0442d'],
@@ -605,6 +608,35 @@ function renderOwen(view, actions) {
   for (const [fill, width] of fills) fill.style.width = width;
 }
 
+// The action keeper under the board: one token per action this turn. Spent
+// tokens stay as empty slots, and a Sugar Rush adds a token on the spot.
+function renderKeeper(view) {
+  const keeper = $('#action-keeper');
+  keeper.hidden = Boolean(view.result);
+  if (view.result) return;
+  const key = `${view.turnNumber}:${view.currentPlayer}:${Boolean(view.response)}`;
+  if (keeperTurn?.key !== key) keeperTurn = { key, total: view.turnAllowance, left: view.turnAllowance };
+  const before = keeperTurn.total;
+  // Actions going up mid-turn (a Sugar Rush) add tokens.
+  keeperTurn.total += Math.max(0, view.actionsLeft - keeperTurn.left);
+  keeperTurn.left = view.actionsLeft;
+  const left = view.bonusRevealPending ? 0 : view.actionsLeft;
+  const tokens = make('div', 'keeper-tokens');
+  for (let i = 0; i < keeperTurn.total; i++) {
+    const spent = i < keeperTurn.total - left;
+    const token = make('span', `keeper-token p${view.currentPlayer}${spent ? ' spent' : ''}${i >= before ? ' fresh' : ''}`);
+    token.setAttribute('aria-hidden', 'true');
+    tokens.append(token);
+  }
+  const label = view.response ? '1 response action' : view.bonusRevealPending ? 'Actions used up' : `${left} action${left === 1 ? '' : 's'} left`;
+  const extras = make('div', 'keeper-extras');
+  if (view.bonusRevealPending) extras.append(make('span', 'keeper-chip', '✨ 1 bonus reveal, or skip'));
+  if (view.chaos?.freeStack && !view.response && !view.bonusRevealPending) extras.append(make('span', 'keeper-chip', '🧸 First stack is free'));
+  if (!view.response && view.turnAllowance > view.rules.turn.actionsPerTurn) extras.append(make('span', 'keeper-chip warm', '🚀 Fast start turn'));
+  keeper.className = `action-keeper p${view.currentPlayer}`;
+  keeper.replaceChildren(make('span', 'keeper-title', `Player ${view.currentPlayer}`), tokens, make('strong', 'keeper-count', label), extras);
+}
+
 function render() {
   const view = publicView(game);
   const actions = getLegalActions(game);
@@ -625,6 +657,7 @@ function render() {
   renderBoard(planView(view), actions);
   renderArmies(view);
   renderOwen(view, actions);
+  renderKeeper(view);
   if (view.chaos?.events.length && animateAction) showOwenToast(view.chaos);
   if (animateAction?.captured && !pending) playCaptureSprites(animateAction, view);
   else if (animateAction && !pending) playPowerSprites(animateAction, view);
@@ -668,7 +701,7 @@ function showRules() {
   const rules = game.rules;
   const blocks = [
     ['03 / Discover your army', `Player 1 starts on a1–d4. Player 2 starts on a5–d8. Both armies occupy the first four files, facing the empty right half. Each contains the standard 16 chess pieces, shuffled face-down. Neither player can inspect hidden identities. ${openingHelp(rules)} Right always points toward file h. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. This opening move applies regardless of the hidden piece’s identity, with no jumping or capture. Revealing a pawn on its far rank promotes it to a queen. Vacated squares open routes for the next layer.`],
-    ['04 / Take an action', `This game allows ${rules.turn.actionsPerTurn} action${rules.turn.actionsPerTurn === 1 ? '' : 's'} per turn. ${rules.turn.revealCostsAction ? 'The slide and reveal together cost one action, regardless of distance.' : 'Slide-and-reveal actions are free.'} Moving, challenging, stacking, and unstacking each cost one action. One bonus reveal: ${hasBonusReveal(rules) ? 'ON — after your normal actions, optionally slide and reveal one additional hidden tile, then pass. You may reveal as your normal action and again as the bonus. The bonus tile cannot also take a normal action that turn. Skip bonus reveal declines it; if no legal reveal exists, the turn ends automatically. A king revealed in check still gets its immediate response.' : rules.turn.bonusReveal ? 'inactive while unlimited free reveals are on.' : 'OFF.'} A checking action ends the turn early, without a bonus. King responses never earn a bonus. Ending a turn early also declines the bonus. Select a tile, then a highlighted destination or a Reveal button.`],
+    ['04 / Take an action', `${rules.turn.openingRamp.length ? `Fast start: your first turn has ${rules.turn.openingRamp.join(' actions, your next has ')} actions. After that, ` : ''}${rules.turn.openingRamp.length ? 'each turn has' : 'This game allows'} ${rules.turn.actionsPerTurn} action${rules.turn.actionsPerTurn === 1 ? '' : 's'}${rules.turn.openingRamp.length ? '' : ' per turn'}. The tokens under the board show how many you have left. ${rules.turn.revealCostsAction ? 'The slide and reveal together cost one action, regardless of distance.' : 'Slide-and-reveal actions are free.'} Moving, challenging, stacking, and unstacking each cost one action. One bonus reveal: ${hasBonusReveal(rules) ? 'ON — after your normal actions, optionally slide and reveal one additional hidden tile, then pass. You may reveal as your normal action and again as the bonus. The bonus tile cannot also take a normal action that turn. Skip bonus reveal declines it; if no legal reveal exists, the turn ends automatically. A king revealed in check still gets its immediate response.' : rules.turn.bonusReveal ? 'inactive while unlimited free reveals are on.' : 'OFF.'} A checking action ends the turn early, without a bonus. King responses never earn a bonus. Ending a turn early also declines the bonus. Select a tile, then a highlighted destination or a Reveal button.`],
     ['05 / Move & challenge', 'Revealed pieces use chess movement. Hidden tiles block paths and exert no attacks. Attacking a hidden enemy tile flips it, with both tiles staying in place. A later attack can capture it if it is not a king. Pawns move one square forward, capture diagonally, and automatically promote to queens. No castling, initial double move, or en passant.'],
     ['06 / The king has a chance', 'Kings are never captured. Hidden kings cannot be checked. When a king is revealed in check, its owner immediately receives one response action before checkmate is judged. A challenge that uncovers an attack on your own king also gives you a response. If both kings are attacked, the challenging player responds first. If no safe response exists, take one preparation action; remaining in check afterward loses.'],
     ['07 / Finish the game', 'Checkmate wins. A player with no legal actions and no check draws. Three identical positions with the same player and action allowance draw, as do 100 actions without a reveal, capture, pawn move, stack, or unstack. Turns switch immediately by default. Enable “Pass-device screen between turns” beside the board if you want a privacy pause; you can toggle it during a game. This prototype does not save games; refreshing starts a new one.']
@@ -697,6 +730,7 @@ for (const close of document.querySelectorAll('[data-close]')) close.addEventLis
 $('#settings-button').addEventListener('click', () => {
   const form = $('#settings-form');
   form.elements.exposure.value = game.rules.exposure.mode;
+  form.elements.fastStart.checked = game.rules.turn.openingRamp.length > 0;
   form.elements.actions.value = game.rules.turn.actionsPerTurn;
   form.elements.freeReveal.checked = !game.rules.turn.revealCostsAction;
   form.elements.bonusReveal.checked = game.rules.turn.bonusReveal;
@@ -710,6 +744,6 @@ $('#settings-form').elements.freeReveal.addEventListener('change', event => {
 $('#settings-form').addEventListener('submit', event => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  startGame({ exposure: { mode: data.get('exposure') }, turn: { actionsPerTurn: Number(data.get('actions')), revealCostsAction: !data.has('freeReveal'), bonusReveal: event.currentTarget.elements.bonusReveal.checked }, stack: { enabled: data.has('stacking') }, ...OWENS_RULES });
+  startGame({ exposure: { mode: data.get('exposure') }, turn: { openingRamp: data.has('fastStart') ? FAST_START : [], actionsPerTurn: Number(data.get('actions')), revealCostsAction: !data.has('freeReveal'), bonusReveal: event.currentTarget.elements.bonusReveal.checked }, stack: { enabled: data.has('stacking') }, ...OWENS_RULES });
 });
 render();

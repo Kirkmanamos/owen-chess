@@ -28,10 +28,11 @@ npm run build  # Copy browser assets into dist/ for static hosting
 
 1. Player 1 occupies **a1–d4**, and Player 2 occupies **a5–d8**. Both armies are shuffled and face down. Files e–h begin empty.
 2. Select an outlined hidden tile, then choose a highlighted destination: **1–4 squares right**, **1 square forward**, or **1 square left**. The entire path and destination must be empty; there is no jumping or capture. Flip **where it lands**. The whole slide and reveal costs one action, regardless of distance or the piece underneath. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. A pawn revealed on its far rank promotes to a queen.
-3. Turns switch immediately, so the next player can act without dismissing a popup. On later turns, reveal another tile or use a revealed piece's chess movement. Clearing a square can open new reveal routes for nearby hidden tiles.
-4. Attack a hidden enemy to challenge it: the target flips in place, and the attacker stays put. Kings are never captured. Newly exposed kings in check receive a response action.
-5. Any of your pieces except the king can **Stack** with another of yours. See *Owen's Rules* below.
-6. Win by collecting Owen's crowns, or by checkmate. **How to play** explains the current rules; **Playtest rules** changes selected rules when starting a fresh game.
+3. **Fast start:** each player's first turn has **3 actions** and their second has **2**. After that, turns have 1 action. Both can be changed in **Playtest rules**. The **action keeper** under the board shows a token for each action this turn; spent ones turn into empty slots, and a Sugar Rush adds a token.
+4. Turns switch immediately, so the next player can act without dismissing a popup. On later turns, reveal another tile or use a revealed piece's chess movement. Clearing a square can open new reveal routes for nearby hidden tiles.
+5. Attack a hidden enemy to challenge it: the target flips in place, and the attacker stays put. Kings are never captured. Newly exposed kings in check receive a response action.
+6. Any of your pieces except the king can **Stack** with another of yours. See *Owen's Rules* below.
+7. Win by collecting Owen's crowns, or by checkmate. **How to play** explains the current rules; **Playtest rules** changes selected rules when starting a fresh game.
 
 Use mouse/touch, or Tab to enter the board, arrow keys to navigate, and Enter/Space to select. Escape clears a tile selection. The **Pass-device screen between turns** checkbox is off by default. Enable it at any point if you want the board hidden between players; when enabled, the next player presses a ready button. This changes presentation only, not turn costs or game state.
 

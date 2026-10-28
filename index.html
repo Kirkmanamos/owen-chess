@@ -22,6 +22,7 @@
           <div class="turn-bar"><div class="turn-player"><span id="turn-dot" class="player-dot p1"></span><div><strong id="turn-title"></strong><span id="turn-subtitle"></span></div></div><div class="turn-tags"><span id="turn-count" class="turn-count"></span></div></div>
           <div id="status" class="status" role="status" aria-live="polite"></div>
           <div class="board-frame"><div id="owen-toast" class="owen-toast" role="status" aria-live="polite"></div><div class="board-surround"><div id="rank-labels" class="rank-labels" aria-hidden="true"></div><div id="board" class="board" role="group" aria-label="Chessboard. Select a hidden tile to see its legal reveal destinations. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. Use arrow keys to navigate."></div><div id="file-labels" class="file-labels" aria-hidden="true"></div></div></div>
+          <div id="action-keeper" class="action-keeper" role="status" aria-live="polite"></div>
           <div class="board-footer"><span><i class="legend-ring"></i> Can reveal</span><span><i class="legend-dot"></i> Legal action</span><span id="direction-label">Player 1 moves ↑</span></div>
         </section>
 
@@ -44,7 +45,8 @@
 
   <dialog id="settings-dialog" class="info-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><p class="eyebrow">THE PLAYTEST LAB</p><button class="icon-button" data-close="settings-dialog" aria-label="Close playtest rules">×</button></div><h2 id="settings-title">Try a different rhythm.</h2><p class="muted">These rules apply to a new randomized game. Starting it replaces the current game.</p><form id="settings-form">
     <label class="field">Opening reveal move<select name="exposure"><option value="flexible">1–4 right, or 1 forward or left</option><option value="right-empty">Classic: one square right</option><option value="either-horizontal">Classic: one square left or right</option></select><small>Slide along a clear path into an empty square, then flip. Forward is ↑ for Player 1 and ↓ for Player 2. Distance does not add actions.</small></label>
-    <label class="field">Actions per turn<select name="actions"><option value="1">1 action · original prototype</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
+    <label class="check-field"><input type="checkbox" name="fastStart" checked> Fast start: 3 actions on your first turn, then 2</label>
+    <label class="field">Actions per turn after that<select name="actions"><option value="1">1 action</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
     <label class="check-field"><input type="checkbox" name="freeReveal"> Slide-and-reveal is free (unlimited)</label>
     <label class="check-field"><input type="checkbox" name="bonusReveal"> One bonus reveal per turn</label>
     <p class="form-note">Off by default. After your normal action(s), optionally slide and reveal one extra hidden tile, then pass. You can skip it. Check and king responses take priority. Inactive while unlimited free reveals are on.</p>
