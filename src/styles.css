@@ -71,13 +71,9 @@
 .square.power-preview::before{content:"✨";position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(12px,2vw,22px);z-index:3;pointer-events:none;animation:preview-twinkle 1.3s ease-in-out 2 both;background:radial-gradient(circle,#ffe9a880 0,transparent 65%)}
 @keyframes preview-twinkle{0%,100%{opacity:0;transform:scale(.5)}50%{opacity:1;transform:scale(1)}}
 .laser{height:6px;border-radius:6px;transform-origin:0 50%;background:linear-gradient(90deg,#fff,#ff5a5a 30%,#ffd23f);box-shadow:0 0 12px #ff5a5a,0 0 4px #fff;animation:laser .5s ease-out both}@keyframes laser{0%{opacity:0;clip-path:inset(0 100% 0 0)}30%{opacity:1;clip-path:inset(0 0 0 0)}100%{opacity:0}}
-.recipe-book{margin-top:12px;padding-top:12px;border-top:1px dashed var(--owen-line)}.recipe{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;padding:5px 7px;border-radius:7px;background:#fff;border:1px solid #efe3c7;margin:5px 0}.recipe-parts{font-family:"Arial Unicode MS","Segoe UI Symbol",Georgia,serif;font-size:15px;letter-spacing:1px}.recipe-power{font-weight:650;white-space:nowrap}.recipe.fresh{animation:recipe-in 1.4s cubic-bezier(.3,1.5,.5,1) both;border-color:#e0a03c;background:#fff4dc}
-@keyframes recipe-in{0%{transform:scale(.6);opacity:0}30%{transform:scale(1.06);opacity:1}100%{transform:none}}
-.triples{display:flex;align-items:center;gap:5px;margin-top:8px}.triples .micro-label{margin-right:auto}.triple{width:24px;height:24px;display:grid;place-items:center;border-radius:6px;background:#f1ebdc;font-size:13px;filter:grayscale(1);opacity:.6}.triple.found{filter:none;opacity:1;background:#fff4dc;border:1px solid var(--owen-line)}
 .toast-eyebrow{font-size:10px;font-weight:800;letter-spacing:1.4px;color:var(--owen)}.owen-toast-card.kind-power.new{border-color:#ffd93d;box-shadow:0 0 0 4px #ff9f6b,0 0 0 8px #c77dff,0 18px 50px #18392e50}.owen-toast-card.kind-power .toast-detail{max-width:300px;line-height:1.5}
 .owen-button.wide{width:100%;justify-content:flex-start}
 @media(prefers-reduced-motion:reduce){.square.power-preview::before{opacity:1}}
-.recipe-list{max-height:176px;overflow:auto;margin-right:-6px;padding-right:6px}
 /* Action keeper: one token per action this turn, under the board. */
 .action-keeper{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:14px;padding:12px 16px;border-radius:16px;background:#fff;border:2px solid var(--line);box-shadow:0 4px 0 var(--line)}.action-keeper.p1{border-color:#e6cc98;box-shadow:0 4px 0 #e6cc98}.action-keeper.p2{border-color:#a9c4b9;box-shadow:0 4px 0 #a9c4b9}
 .keeper-title{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}.keeper-tokens{display:flex;gap:7px}.keeper-count{font-size:15px}
@@ -87,3 +83,21 @@
 @keyframes token-pop{from{transform:scale(0) rotate(-90deg)}to{transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.keeper-token.fresh{animation:none}}
 @media(max-width:680px){.action-keeper{padding:10px 12px;gap:8px 10px}.keeper-token{width:22px;height:22px}.keeper-extras{margin-left:0}}
+/* Power slots: three windows spin and stop on the power the engine picked. */
+.owen-toast.show .owen-toast-card.kind-power{animation-duration:4.6s;min-width:260px}
+.slot-machine{display:flex;gap:8px;padding:10px;margin:4px 0 2px;border-radius:16px;background:linear-gradient(#ff6b6b,#e0475b);box-shadow:inset 0 -5px 0 #0003,0 6px 0 #a3283a}
+.reel-wild .slot-machine{background:linear-gradient(#5ec8f2,#3a9bd6);box-shadow:inset 0 -5px 0 #0003,0 6px 0 #22679a}
+.reel-super .slot-machine,.reel-jackpot .slot-machine{background:linear-gradient(#ffd23f,#f5a623);box-shadow:inset 0 -5px 0 #0003,0 6px 0 #b9741a,0 0 0 4px #c77dff}
+.slot-window{width:58px;height:52px;overflow:hidden;border-radius:10px;background:#fff;box-shadow:inset 0 6px 8px -4px #0005,inset 0 -6px 8px -4px #0005}
+.slot-strip{display:flex;flex-direction:column}.slot-icon{height:52px;display:grid;place-items:center;font-size:32px;line-height:1}
+.slot-window.landed{animation:slot-land .35s cubic-bezier(.3,1.6,.5,1)}
+.slot-result{opacity:0;animation:slot-result .4s 1.7s cubic-bezier(.3,1.5,.5,1) both}
+.reel-jackpot .slot-window.landed,.reel-super .slot-window.landed{background:#fff7d1}
+@keyframes slot-land{50%{transform:scale(1.12)}}
+@keyframes slot-result{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.slot-result{animation:none;opacity:1}.slot-window.landed{animation:none}}
+.power-reels{margin-top:12px;padding-top:12px;border-top:1px dashed var(--owen-line)}
+.reel-row{display:flex;align-items:center;gap:8px;padding:6px 0}.reel-label{font-size:11px;font-weight:600;min-width:78px;color:var(--muted)}
+.reel-icons{display:flex;flex-wrap:wrap;gap:4px}.reel-icon{width:28px;height:28px;display:grid;place-items:center;font-size:17px;border-radius:8px;background:#fff;border:1px solid var(--line);cursor:help}
+.reel-super .reel-icon{background:#fff7d1;border-color:#f0c55a}.reel-wild .reel-icon{background:#eaf6fd;border-color:#a9d5ee}
+.reel-icon.landed{border:2px solid var(--owen);transform:scale(1.15);animation:slot-land .5s 1.8s both}

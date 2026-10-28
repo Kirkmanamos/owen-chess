@@ -59,9 +59,9 @@ The original game was invented by a 4-year-old, so the way to win keeps changing
 - **Captures pay off.** Captured pieces fly into your **Toy Box**. Catching anything bigger than a pawn gives a **Sugar Rush**: one extra action right away, once per turn. Giving check still ends the turn, and king responses never earn one. Every 4 toys earns a Not Fair token.
 - **Unicorns.** Every knight is a unicorn: the same knight piece, with a horn. It still moves exactly like a knight.
 - **Stack anything.** Any of your pieces except the king can stack with another of yours up to 2 squares away, up to 3 high. Select a piece, then click a piece marked **+**. **Your first stack each turn is free**, so you can use the new stack right away.
-- **Every new mix invents a power.** A stack moves like all of its pieces combined (a pawn inside steps one square any way), plus a power. The first time anyone makes a new mix, Owen rolls a random power for it, and the public **Recipe Book** keeps it for the rest of the game. Powers include Bouncy, Froggy, Floaty, Ghosty, Fort (can't be captured), Sticky (freezes touching enemies), Swappy, Sneezy (pushes touching enemies away), and Pew Pew (zaps 2 squares away).
-- **Toys and three of a kind.** Stack a toy from your Toy Box onto one of your pieces; mixes with a toy roll from a wilder pool. Three of a kind always makes a secret super power: Choo-Choo (3 pawns), Rainbow Unicorn, Wizard, Castle Crusher, and Mega Queen. **Pop off** removes your own top piece; toys stay stuck on. A captured stack comes apart into separate toys.
-- **Powers show up at once.** A new power gets an announcement, a rainbow ring and badge on the stack, a Recipe Book entry, and sparkles on every square it can now reach. If it's still your turn, the stack stays selected with its moves highlighted.
+- **Every stack spins the power slots.** A stack moves like all of its pieces combined (a pawn inside steps one square any way), plus a power. Each time you stack, three slot reels spin and land on a power, so the same mix can get a different power next time. Powers on the normal reel: Bouncy, Froggy, Floaty, Ghosty, Fort (can't be captured), and Sticky (freezes touching enemies). The **Power reels** panel shows every reel.
+- **Toys, super spins and jackpots.** Stacking a toy from your Toy Box onto one of your pieces spins the wild reel: Swappy, Sneezy (pushes touching enemies away), Pew Pew (zaps 2 squares away), Ghosty, Floaty and Bouncy. Stacking a third piece on top spins the **super reel**: Choo-Choo (slides like a rook), Rainbow Unicorn (one or two unicorn hops), Wizard (teleports to any empty square of its color), Castle Crusher (slides like a rook through pieces) and Mega (also moves like a queen). Three of a kind always hits its jackpot: 🚂 pawns, 🌈 unicorns, 🧙 bishops, 🏰 rooks, 💥 queens. **Pop off** removes your own top piece and spins the normal reel again for what's left; toys stay stuck on. A captured stack comes apart into separate toys.
+- **Powers show up at once.** A power gets its slot spin, a rainbow ring and badge on the stack, a highlight on the Power reels panel, and sparkles on every square it can now reach. If it's still your turn, the stack stays selected with its moves highlighted.
 
 Each attacker has its own capture sprite: the pawn waddles in for a **CHOMP!**, the unicorn hops for a **NEIGH!**, the bishop teleports with a **ZAP!**, the rook slams for a **CRASH!** that shakes the board, the queen spins in for a **KAPOW!**, the king stomps for a **BONK!**, and a pawn stack does a **SQUISH!**. The captured piece pops out and flies into the Toy Box. Reward bubbles show Sugar Rushes and new tokens.
 
@@ -82,14 +82,15 @@ Announcements pop up over the board without blocking it. Goal cards flip in, pro
 | `src/rules/turn.js` | Action costs and turn allowance |
 | `src/rules/outcome.js` | Checkmate, stalemate, repetition, and quiet-action draws |
 | `src/rules/chaos.js` | Owen's Rules: goal deck, crowns, boredom, "No! You play like this!", Not Fair tokens, capture rewards |
-| `src/rules/powers.js` | Owen's stacks: any-piece stacking, Toy Box toys, recipes, power geometry and power actions |
+| `src/rules/powers.js` | Owen's stacks: any-piece stacking, Toy Box toys, the power reels, power geometry and power actions |
 | `src/rules/random.js` | Seeded randomness stored in the game state |
 | `src/main.js` | DOM rendering and input; no movement-rule implementations. Every game starts with `chaos.enabled`, since Owen's Rules is the only mode |
 | `tests/engine.test.js` | Rule scenarios, privacy invariants, and material conservation |
 | `tests/exposure.test.js` | Reveal distances, blockers, player directions, promotion, privacy and king responses |
 | `tests/stack-experiments.test.js` | All eight experiment combinations, compound actions, scouting privacy and king responses |
-| `tests/owen-stacks.test.js` | Any-piece stacks, free first stack, recipes, triples, toys, pop-off and every special power |
+| `tests/owen-stacks.test.js` | Any-piece stacks, free first stack, reel spins, super spins, jackpots, toys, pop-off and every special power |
 | `tests/owen-rules.test.js` | Goal completion, tallies, goal swaps when someone is close, boredom, tokens, locks, privacy and seeded replay |
+| `tests/opening-ramp.test.js` | Fast start: 3, then 2, then the normal allowance, and king responses not using it up |
 | `tests/bonus-reveal.test.js` | Bounded reveal turns, skipping, check responses, privacy, stacking interactions and seeded play |
 | `openings/`, `tests/openings/` | Opening Arena and its tests; see [openings/README.md](openings/README.md) |
 

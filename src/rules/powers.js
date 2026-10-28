@@ -3,8 +3,8 @@ import { pick } from './random.js';
 
 // Owen's stacks: any of your pieces except the king can stack, up to 3 high,
 // including toys taken from your Toy Box. A stack moves like every piece in it
-// put together, plus one power. A new recipe rolls its power the first time
-// anyone makes it; after that it is written in the Recipe Book for good.
+// put together, plus one power. Every stack spins the power slots: a 2-high
+// stack spins the normal reel, and stacking a third piece spins the super reel.
 
 export const MAX_STACK = 3;
 export const STACK_REACH = 2;
@@ -20,46 +20,50 @@ export const POWERS = {
   swappy: { icon: '🔄', name: 'Swappy', text: 'Can swap places with any of your pieces, anywhere.' },
   sneezy: { icon: '🤧', name: 'Sneezy', text: 'Can sneeze: every enemy touching it is pushed one square away.' },
   pewpew: { icon: '🎯', name: 'Pew Pew', text: 'Can zap an enemy exactly 2 squares away in a straight line, without moving.' },
-  // Three of a kind always makes the same extra-special power.
-  choochoo: { icon: '🚂', name: 'Choo-Choo', text: 'Three pawns! Also slides like a rook.', triple: 'pawn' },
-  rainbow: { icon: '🌈', name: 'Rainbow Unicorn', text: 'Three unicorns! Hops once, or twice in a row.', triple: 'knight' },
-  wizard: { icon: '🧙', name: 'Wizard', text: 'Three bishops! Can teleport to any empty square of its color.', triple: 'bishop' },
-  crusher: { icon: '🏰', name: 'Castle Crusher', text: 'Three rooks! Slides like a rook, right through pieces.', triple: 'rook' },
-  mega: { icon: '💥', name: 'Mega Queen', text: 'Three queens! Also hops like a unicorn.', triple: 'queen' }
+  // Super powers: the reel for 3-high stacks. Three of a kind hits its jackpot.
+  choochoo: { icon: '🚂', name: 'Choo-Choo', text: 'Also slides like a rook.', triple: 'pawn', super: true },
+  rainbow: { icon: '🌈', name: 'Rainbow Unicorn', text: 'Hops like a unicorn once, or twice in a row.', triple: 'knight', super: true },
+  wizard: { icon: '🧙', name: 'Wizard', text: 'Can teleport to any empty square of its color.', triple: 'bishop', super: true },
+  crusher: { icon: '🏰', name: 'Castle Crusher', text: 'Slides like a rook, right through pieces.', triple: 'rook', super: true },
+  mega: { icon: '💥', name: 'Mega', text: 'Also moves like a queen.', triple: 'queen', super: true }
 };
-// Your own pieces roll from the tame pool. Mixing in a captured toy is wild.
-const TAME = ['bouncy', 'froggy', 'floaty', 'fort', 'sticky', 'ghosty'];
-const WILD = ['swappy', 'sneezy', 'pewpew', 'ghosty', 'floaty', 'bouncy'];
+// The slot reels. Your own pieces spin the tame reel; a captured toy mixed in
+// spins the wild one. A third piece spins the super reel.
+export const REELS = {
+  tame: ['bouncy', 'froggy', 'floaty', 'fort', 'sticky', 'ghosty'],
+  wild: ['swappy', 'sneezy', 'pewpew', 'ghosty', 'floaty', 'bouncy'],
+  super: ['choochoo', 'rainbow', 'wizard', 'crusher', 'mega']
+};
 const TRIPLES = Object.fromEntries(Object.entries(POWERS).filter(([, p]) => p.triple).map(([id, p]) => [p.triple, id]));
 
 export const partsOf = piece => piece.parts ?? Array.from({ length: piece.count }, () => ({ type: piece.type, color: piece.owner }));
 export const isMixed = (parts, owner) => parts.some(part => part.color !== owner);
-export const recipeKey = (parts, owner) => `${parts.map(part => part.type).sort().join('+')}${isMixed(parts, owner) ? '*' : ''}`;
 const tripleOf = parts => parts.length === 3 && parts.every(part => part.type === parts[0].type) ? TRIPLES[parts[0].type] ?? null : null;
 
-// Builds the piece for a list of parts. Known recipes get their power right
-// away; a brand-new recipe gets `power: null` until the engine rolls it.
-export function pieceFromParts(chaos, parts, owner) {
+// Builds the piece for a list of parts. A new stack gets `power: null` until
+// the engine spins for it, so legality checks never peek at the result.
+export function pieceFromParts(parts, owner) {
   if (parts.length === 1) return { owner, type: parts[0].type, revealed: true, count: 1, moved: true };
-  return { owner, type: parts[0].type, revealed: true, count: parts.length, moved: true, parts, power: tripleOf(parts) ?? chaos.recipes[recipeKey(parts, owner)] ?? null };
+  return { owner, type: parts[0].type, revealed: true, count: parts.length, moved: true, parts, power: null };
 }
 
-function rollPower(chaos, parts, owner) {
-  const pool = (isMixed(parts, owner) ? WILD : TAME).filter(id => id !== 'froggy' || !parts.some(part => part.type === 'knight'));
-  return pick(chaos, pool);
+export const reelFor = (parts, owner) => tripleOf(parts) ? 'jackpot' : parts.length === 3 ? 'super' : isMixed(parts, owner) ? 'wild' : 'tame';
+
+function spinPower(chaos, parts, owner, reel) {
+  if (reel === 'jackpot') return tripleOf(parts);
+  // A unicorn already hops, so Froggy would add nothing.
+  return pick(chaos, REELS[reel].filter(id => id !== 'froggy' || !parts.some(part => part.type === 'knight')));
 }
 
-// After a real action: give every new recipe its power and announce it.
+// After a real action: spin the slots for every stack that was just made.
 export function discoverPowers(next, squares) {
   const { chaos } = next;
   for (const square of squares) {
     const piece = next.board[square];
-    if (!piece?.parts) continue;
-    const key = recipeKey(piece.parts, piece.owner);
-    const isNew = !(key in chaos.recipes);
-    if (piece.power === null) piece.power = rollPower(chaos, piece.parts, piece.owner);
-    if (isNew) chaos.recipes[key] = piece.power;
-    chaos.events.push({ type: 'power', player: piece.owner, square, power: piece.power, isNew, key, parts: piece.parts.map(part => ({ ...part })) });
+    if (!piece?.parts || piece.power !== null) continue;
+    const reel = reelFor(piece.parts, piece.owner);
+    piece.power = spinPower(chaos, piece.parts, piece.owner, reel);
+    chaos.events.push({ type: 'power', player: piece.owner, square, power: piece.power, reel, parts: piece.parts.map(part => ({ ...part })) });
   }
 }
 
@@ -85,7 +89,8 @@ export function stackTargets(state, from, movement) {
   const add = list => list.forEach(to => squares.add(to));
   switch (piece.power) {
     case 'bouncy': add(jumps(from, AROUND.map(([dr, dc]) => [dr * 2, dc * 2]))); break;
-    case 'froggy': case 'mega': add(jumps(from, KNIGHT)); break;
+    case 'froggy': add(jumps(from, KNIGHT)); break;
+    case 'mega': add(movement.queen(state, from)); break;
     case 'floaty': add(near(from, 2)); break;
     case 'ghosty': add(ghostRays(from, AROUND, 3)); break;
     case 'choochoo': add(movement.rook(state, from)); break;
@@ -168,21 +173,21 @@ export function changeOwenBoard(next, action, piece, capture) {
       const base = next.board[action.to];
       next.board[action.from] = null;
       next.board[action.to] = null;
-      next.board[action.step ?? action.to] = pieceFromParts(chaos, [...partsOf(base), ...partsOf(piece)], piece.owner);
+      next.board[action.step ?? action.to] = pieceFromParts([...partsOf(base), ...partsOf(piece)], piece.owner);
       break;
     }
     case 'adopt': {
       const toys = [...chaos.toys[piece.owner]];
       const toy = toys.splice(toys.findIndex(t => t.type === action.toy), 1)[0];
       next.chaos = { ...chaos, toys: { ...chaos.toys, [piece.owner]: toys } };
-      next.board[action.from] = pieceFromParts(chaos, [...partsOf(piece), toy], piece.owner);
+      next.board[action.from] = pieceFromParts([...partsOf(piece), toy], piece.owner);
       break;
     }
     case 'unstack': {
       const parts = [...piece.parts];
       const [top] = parts.splice(poppable(piece), 1);
-      next.board[action.from] = pieceFromParts(chaos, parts, piece.owner);
-      next.board[action.to] = pieceFromParts(chaos, [top], piece.owner);
+      next.board[action.from] = pieceFromParts(parts, piece.owner);
+      next.board[action.to] = pieceFromParts([top], piece.owner);
       break;
     }
     case 'swap':

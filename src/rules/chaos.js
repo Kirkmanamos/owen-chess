@@ -113,7 +113,7 @@ export function createChaos(state, random) {
   state.chaos = {
     seed: Math.floor(random() * 4294967296) >>> 0, goal: null, goalTurn: 1, tally: { 1: 0, 2: 0 },
     crowns: { 1: 0, 2: 0 }, tokens: { 1: 0, 2: 0 }, lockedUntil: 0, lockedBy: null, tokenTurn: 0, sugarTurn: 0, hugTurn: 0, recent: [], events: [],
-    toys: { 1: [], 2: [] }, recipes: {}
+    toys: { 1: [], 2: [] }
   };
   drawGoal(state);
 }
@@ -214,7 +214,6 @@ export function publicChaos(state) {
     crownsToWin: state.rules.chaos.crownsToWin, nuhUhChance: state.rules.chaos.nuhUhChance,
     turnsLeft: Math.max(0, turnsLeft(state)), locked: isLocked(state), lockedBy: isLocked(state) ? chaos.lockedBy : null,
     events: structuredClone(chaos.events), toys: structuredClone(chaos.toys),
-    recipes: Object.entries(chaos.recipes).map(([key, power]) => ({ key, power })),
     freeStack: chaos.hugTurn !== state.turnNumber
   };
 }

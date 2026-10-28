@@ -2,7 +2,7 @@ import { createGame, getLegalActions, applyAction, publicView } from './engine.j
 import { squareName, offset, rowOf, colOf } from './board.js';
 import { hasBonusReveal } from './rules/turn.js';
 import { TOYS_PER_TOKEN } from './rules/chaos.js';
-import { POWERS } from './rules/powers.js';
+import { POWERS, REELS } from './rules/powers.js';
 import { attackedSquares } from './rules/movement.js';
 
 const $ = selector => document.querySelector(selector);
@@ -350,7 +350,7 @@ function owenHint(view, piece, ownActions) {
 }
 
 const OWEN_TOASTS = {
-  power: event => [POWERS[event.power].icon, `${event.isNew ? 'New power' : 'Power'}: ${POWERS[event.power].name}!`],
+  power: event => [POWERS[event.power].icon, `${POWERS[event.power].name}!`],
   crown: event => ['👑', `Crown for Player ${event.player}!`],
   'nuh-uh': () => ['NO!', 'You play like this!'],
   bored: () => ['🥱', 'Owen got bored.'],
@@ -365,9 +365,10 @@ function showOwenToast(chaos) {
   const toast = $('#owen-toast');
   const [mark, headline] = event.final ? ['👑', `Player ${event.player} wins Owen’s game!`] : OWEN_TOASTS[event.type](event);
   const detail = event.final ? `${chaos.crownsToWin} crowns. Owen is very proud.` : event.type === 'power' ? `${partGlyphs(event.parts)} · ${POWERS[event.power].text}` : event.type === 'lock' ? `${chaos.goal.title} stays put.` : `New goal: ${chaos.goal.icon} ${chaos.goal.title}`;
-  const card = make('div', `owen-toast-card kind-${event.type}${event.final ? ' final' : ''}${event.isNew ? ' new' : ''}`);
-  if (event.type === 'power' && event.isNew) card.append(make('span', 'toast-eyebrow', '✨ OWEN INVENTED A NEW POWER ✨'));
-  card.append(make('span', event.type === 'nuh-uh' ? 'toast-stamp' : 'toast-mark', mark), make('strong', '', headline), make('span', 'toast-detail', detail));
+  const spin = event.type === 'power' && !event.final;
+  const card = make('div', `owen-toast-card kind-${event.type}${event.final ? ' final' : ''}${spin ? ` reel-${event.reel}` : ''}`);
+  if (spin) card.append(make('span', 'toast-eyebrow', REEL_TITLES[event.reel]), slotMachine(event), make('strong', 'slot-result', headline), make('span', 'toast-detail slot-result', detail));
+  else card.append(make('span', event.type === 'nuh-uh' ? 'toast-stamp' : 'toast-mark', mark), make('strong', '', headline), make('span', 'toast-detail', detail));
   if (event.robbed?.length) card.append(make('span', 'toast-token', `🙅 Not Fair token for ${event.robbed.map(p => `Player ${p}`).join(' & ')}`));
   toast.replaceChildren(card);
   toast.className = 'owen-toast';
@@ -375,7 +376,41 @@ function showOwenToast(chaos) {
   toast.classList.add('show');
   clearTimeout(toastTimer);
   if (event.final) return celebrate();
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+  if (spin) spinReels(card);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), spin ? SPIN_TOAST_MS : 2800);
+}
+
+const REEL_TITLES = { tame: '🎰 POWER SPIN', wild: '🧸 TOY SPIN · WILD REEL', super: '⭐ SUPER SPIN ⭐', jackpot: '🎉 THREE OF A KIND · JACKPOT 🎉' };
+const SLOT_ICON_PX = 52; // Matches .slot-icon height in the stylesheet.
+const SPIN_TOAST_MS = 4600;
+
+// Three slot windows that spin through the reel and all stop on the power.
+// The result is already decided by the engine; this only shows it off.
+function slotMachine(event) {
+  const pool = REELS[event.reel === 'jackpot' ? 'super' : event.reel];
+  const machine = make('div', 'slot-machine');
+  machine.setAttribute('aria-hidden', 'true');
+  for (let reel = 0; reel < 3; reel++) {
+    const strip = make('div', 'slot-strip');
+    const spins = 10 + reel * 4;
+    for (let i = 0; i < spins; i++) strip.append(make('span', 'slot-icon', POWERS[pool[Math.floor(Math.random() * pool.length)]].icon));
+    strip.append(make('span', 'slot-icon', POWERS[event.power].icon));
+    strip.dataset.spins = spins;
+    const slot = make('div', 'slot-window');
+    slot.append(strip);
+    machine.append(slot);
+  }
+  return machine;
+}
+
+function spinReels(card) {
+  const strips = [...card.querySelectorAll('.slot-strip')];
+  for (const [reel, strip] of strips.entries()) {
+    const end = `translateY(-${strip.dataset.spins * SLOT_ICON_PX}px)`;
+    if (reducedMotion()) { strip.style.transform = end; continue; }
+    strip.animate([{ transform: 'translateY(0)' }, { transform: end }], { duration: 900 + reel * 380, delay: 150, easing: 'cubic-bezier(.15,.6,.3,1.12)', fill: 'both' })
+      .finished.then(() => strip.parentElement.classList.add('landed'), () => {});
+  }
 }
 
 function celebrate() {
@@ -514,36 +549,28 @@ function toyBox(view) {
   return box;
 }
 
-// Every recipe anyone has discovered, for both players to see.
-function recipeBook(view) {
-  const book = make('div', 'recipe-book');
+// The power reels, so both players can see what a spin might land on.
+function powerReels(view) {
+  const panel = make('div', 'power-reels');
   const heading = make('div', 'toy-heading');
-  heading.append(make('span', '', '📖 Recipe Book'), make('span', 'micro-label', 'NEW MIX = NEW POWER · 🧸 = WILD'));
-  book.append(heading);
-  const fresh = view.chaos.events.find(e => e.type === 'power' && e.isNew);
-  const recipes = view.chaos.recipes.filter(r => !POWERS[r.power].triple);
-  if (!recipes.length) book.append(make('p', 'owen-note', 'Stack any two of your pieces (not the king) to invent the first power!'));
-  const list = make('div', 'recipe-list');
-  for (const recipe of [...recipes].reverse()) {
-    const types = recipe.key.replace('*', '').split('+');
-    const power = POWERS[recipe.power];
-    const row = make('div', `recipe${fresh && fresh.power === recipe.power && recipe.key === fresh.key ? ' fresh' : ''}`);
-    row.append(make('span', 'recipe-parts', `${types.map(type => SYMBOLS[type]).join('')}${recipe.key.endsWith('*') ? ' 🧸' : ''}`), make('span', 'recipe-power', `${power.icon} ${power.name}`));
-    row.title = power.text;
-    row.setAttribute('aria-label', `${types.map(owenWords).join(' and ')}${recipe.key.endsWith('*') ? ' with a toy' : ''}: ${power.name}. ${power.text}`);
-    list.append(row);
+  heading.append(make('span', '', '🎰 Power reels'), make('span', 'micro-label', 'EVERY STACK SPINS'));
+  panel.append(heading);
+  const landed = view.chaos.events.find(e => e.type === 'power');
+  const rows = [['tame', '2 stacked'], ['wild', '+ a toy 🧸'], ['super', '3 stacked ⭐']];
+  for (const [reel, label] of rows) {
+    const row = make('div', `reel-row reel-${reel}`);
+    const icons = make('span', 'reel-icons');
+    for (const id of REELS[reel]) {
+      const chip = make('span', `reel-icon${landed?.power === id && (landed.reel === reel || (landed.reel === 'jackpot' && reel === 'super')) ? ' landed' : ''}`, POWERS[id].icon);
+      chip.title = `${POWERS[id].name}: ${POWERS[id].text}`;
+      icons.append(chip);
+    }
+    row.append(make('span', 'reel-label', label), icons);
+    row.setAttribute('aria-label', `${label}: ${REELS[reel].map(id => POWERS[id].name).join(', ')}`);
+    panel.append(row);
   }
-  if (recipes.length) book.append(list);
-  const triples = make('div', 'triples');
-  triples.append(make('span', 'micro-label', 'THREE OF A KIND'));
-  for (const [id, power] of Object.entries(POWERS).filter(([, p]) => p.triple)) {
-    const found = view.chaos.recipes.some(r => r.power === id);
-    const chip = make('span', `triple${found ? ' found' : ''}`, found ? power.icon : '❔');
-    chip.title = found ? `${power.name}: ${power.text}` : `Three ${owenWords(power.triple)}s: a secret super power`;
-    triples.append(chip);
-  }
-  book.append(triples);
-  return book;
+  panel.append(make('p', 'owen-note', 'Three of a kind always hits its jackpot: 🚂 pawns, 🌈 unicorns, 🧙 bishops, 🏰 rooks, 💥 queens.'));
+  return panel;
 }
 
 function crownSlots(chaos, before, player) {
@@ -596,7 +623,7 @@ function renderOwen(view, actions) {
     scores.append(row);
   }
   const [moodClass, moodText] = owenMood(chaos);
-  panel.append(heading, card, scores, make('p', `owen-mood ${moodClass}`, moodText), toyBox(view), recipeBook(view));
+  panel.append(heading, card, scores, make('p', `owen-mood ${moodClass}`, moodText), toyBox(view), powerReels(view));
 
   const spend = actions.filter(a => a.kind.startsWith('goal-'));
   if (spend.length) {
@@ -706,7 +733,7 @@ function showRules() {
     ['06 / The king has a chance', 'Kings are never captured. Hidden kings cannot be checked. When a king is revealed in check, its owner immediately receives one response action before checkmate is judged. A challenge that uncovers an attack on your own king also gives you a response. If both kings are attacked, the challenging player responds first. If no safe response exists, take one preparation action; remaining in check afterward loses.'],
     ['07 / Finish the game', 'Checkmate wins. A player with no legal actions and no check draws. Three identical positions with the same player and action allowance draw, as do 100 actions without a reveal, capture, pawn move, stack, or unstack. Turns switch immediately by default. Enable “Pass-device screen between turns” beside the board if you want a privacy pause; you can toggle it during a game. This prototype does not save games; refreshing starts a new one.']
   ];
-  if (rules.chaos.enabled) blocks.unshift(['01 / Owen’s Rules', `This game was invented by a 4-year-old, so the way to win keeps changing. Owen picks a goal, such as “Get 4 of your pieces into the other team’s half.” The first player to finish it gets a crown, and Owen picks a new goal. Goals marked “counts from now” only count what happens after they appear. First to ${rules.chaos.crownsToWin} crowns wins, and checkmate still wins instantly. Owen gets bored after ${rules.chaos.boredTurns} turns and picks a new goal; the countdown is always shown. When someone is one step away, each time the turn passes there is a ${Math.round(rules.chaos.nuhUhChance * 100)}% chance Owen shouts “No! You play like this!” and changes the goal. Whenever a goal is taken away from someone one step from finishing, they get a Not Fair token (up to ${rules.chaos.maxTokens}). On your turn, spend one for free: “Not fair!” draws a new goal, or “Pinky promise” locks the goal until your next turn ends. One token per turn. Owen never picks a goal that someone has already nearly finished. Captured pieces go into your Toy Box. Catching anything bigger than a pawn gives a Sugar Rush: one extra action right away, once per turn (giving check still ends your turn, and king responses never earn one). Every ${TOYS_PER_TOKEN} toys in your Toy Box earns a Not Fair token. `], ['02 / Stack anything', rules.stack.enabled ? `Any of your pieces except the king can stack with another of yours up to 2 squares away, up to 3 high. Your first stack each turn is free, so you can use it right away. A stack moves like all of its pieces put together (a pawn in a stack steps one square any way), plus a power. The first time anyone makes a new mix, Owen invents a random power for it, and the Recipe Book remembers it for the rest of the game. You can also stack a toy from your Toy Box onto one of your pieces; mixes with a toy get wilder powers. Three of a kind always makes a secret super power. Pop off pops your own top piece onto an empty neighbor; toys stay stuck on. A captured stack comes apart, and every piece in it becomes a toy. Powers: ${Object.values(POWERS).filter(p => !p.triple).map(p => `${p.icon} ${p.name}: ${p.text}`).join(' ')}` : 'Stacking is turned off for this game.']);
+  if (rules.chaos.enabled) blocks.unshift(['01 / Owen’s Rules', `This game was invented by a 4-year-old, so the way to win keeps changing. Owen picks a goal, such as “Get 4 of your pieces into the other team’s half.” The first player to finish it gets a crown, and Owen picks a new goal. Goals marked “counts from now” only count what happens after they appear. First to ${rules.chaos.crownsToWin} crowns wins, and checkmate still wins instantly. Owen gets bored after ${rules.chaos.boredTurns} turns and picks a new goal; the countdown is always shown. When someone is one step away, each time the turn passes there is a ${Math.round(rules.chaos.nuhUhChance * 100)}% chance Owen shouts “No! You play like this!” and changes the goal. Whenever a goal is taken away from someone one step from finishing, they get a Not Fair token (up to ${rules.chaos.maxTokens}). On your turn, spend one for free: “Not fair!” draws a new goal, or “Pinky promise” locks the goal until your next turn ends. One token per turn. Owen never picks a goal that someone has already nearly finished. Captured pieces go into your Toy Box. Catching anything bigger than a pawn gives a Sugar Rush: one extra action right away, once per turn (giving check still ends your turn, and king responses never earn one). Every ${TOYS_PER_TOKEN} toys in your Toy Box earns a Not Fair token. `], ['02 / Stack anything', rules.stack.enabled ? `Any of your pieces except the king can stack with another of yours up to 2 squares away, up to 3 high. Your first stack each turn is free, so you can use it right away. A stack moves like all of its pieces put together (a pawn in a stack steps one square any way), plus a power. Every time you stack, the power slots spin and land on a power. Stacking a third piece on top spins the super reel for an even stronger power. Mixing in a toy from your Toy Box spins the wild reel. Three of a kind always hits its jackpot. Pop off pops your own top piece onto an empty neighbor; toys stay stuck on. A captured stack comes apart, and every piece in it becomes a toy. Powers: ${Object.values(POWERS).filter(p => !p.super).map(p => `${p.icon} ${p.name}: ${p.text}`).join(' ')} Super powers: ${Object.values(POWERS).filter(p => p.super).map(p => `${p.icon} ${p.name}: ${p.text}`).join(' ')}` : 'Stacking is turned off for this game.']);
   const container = $('#rules-content'); container.replaceChildren();
   for (const [title, text] of blocks) { const block = make('section', 'rule-block'); block.append(make('h3', '', title), make('p', '', text)); container.append(block); }
   $('#rules-dialog').showModal();
