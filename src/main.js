@@ -217,7 +217,7 @@ function renderBoard(view, actions) {
     if (piece) {
       const tile = make('span', `tile p${piece.owner}${piece.revealed ? '' : ' hidden'}${piece.count >= 2 ? ' stack' : ''}${piece.count === 3 ? ' tall' : ''}`);
       tile.setAttribute('aria-hidden', 'true');
-      tile.append(make('span', piece.revealed ? `piece-symbol${horn(piece.type)}` : 'seal', piece.revealed ? SYMBOLS[piece.type] : '✦'));
+      tile.append(make('span', piece.revealed ? `piece-symbol${horn(piece.type)}` : 'seal', piece.revealed ? SYMBOLS[piece.type] : '?'));
       if (piece.parts) {
         // The bottom piece is the big glyph; the others ride along as chips.
         const riders = make('span', 'stack-parts');

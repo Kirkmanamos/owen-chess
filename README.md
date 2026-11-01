@@ -1,4 +1,4 @@
-# Owen's Rules — Version 0.7.0
+# Owen's Rules — Version 0.8.0
 
 A playable local two-player prototype of a hidden-army chess game where the goal keeps changing. The rules are deliberately experimental.
 
