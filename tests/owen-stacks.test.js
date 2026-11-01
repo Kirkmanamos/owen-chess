@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, getLegalActions, applyAction, publicView } from '../src/engine.js';
 import { positionKey } from '../src/rules/outcome.js';
-import { POWERS, recipeKey } from '../src/rules/powers.js';
+import { POWERS, REELS } from '../src/rules/powers.js';
 
 const sq = name => (8 - Number(name[1])) * 8 + 'abcdefgh'.indexOf(name[0]);
 const piece = (type, owner = 1, revealed = true) => ({ type, owner, revealed, count: 1, moved: true });
@@ -42,9 +42,8 @@ test('any two pieces stack from up to 2 squares away, and the first stack each t
   const made = next.board[sq('f4')];
   assert.deepEqual(made.parts, [{ type: 'knight', color: 1 }, { type: 'queen', color: 1 }]);
   assert.ok(['bouncy', 'floaty', 'fort', 'sticky', 'ghosty'].includes(made.power), 'tame pool, and no Froggy with a unicorn inside');
-  assert.equal(next.chaos.recipes[recipeKey(made.parts, 1)], made.power);
   assert.deepEqual(next.chaos.events.map(e => e.type), ['power']);
-  assert.equal(next.chaos.events[0].isNew, true);
+  assert.equal(next.chaos.events[0].reel, 'tame');
   assert.equal(next.currentPlayer, 1, 'the free stack keeps the turn');
   assert.equal(next.actionsLeft, 1);
   assert.equal(publicView(next).chaos.freeStack, false);
@@ -52,28 +51,43 @@ test('any two pieces stack from up to 2 squares away, and the first stack each t
   assert.ok(getLegalActions(next).some(a => a.from === sq('f4') && a.kind === 'move'), 'the new stack can move right away');
 });
 
-test('a recipe keeps its power for the rest of the game, and stacks top out at 3', () => {
-  let state = position({ ...kings, a1: piece('bishop'), b1: piece('rook'), a3: piece('bishop'), b3: piece('rook'), c3: piece('pawn'), a8: piece('rook', 2) });
-  state = act(state, 'stack', 'a1', 'b1');
-  const power = state.board[sq('b1')].power;
-  state = act(state, 'move', 'h1', 'g1');
-  state = act(state, 'move', 'a8', 'a7');
-  state = act(state, 'stack', 'a3', 'b3');
-  assert.equal(state.board[sq('b3')].power, power);
-  assert.equal(state.chaos.events[0].isNew, false);
-  state = act(state, 'move', 'g1', 'h1');
-  state = act(state, 'move', 'a7', 'a8');
+test('every stack spins fresh, so the same mix can land on different powers', () => {
+  const landed = new Set();
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+    const state = createGame({ chaos: { enabled: true, nuhUhChance: 0 } }, seeded(seed));
+    state.board.fill(null);
+    Object.assign(state.board, { [sq('a1')]: piece('bishop'), [sq('b1')]: piece('rook'), [sq('h1')]: piece('king'), [sq('h8')]: piece('king', 2, false) });
+    state.repetitions = { [positionKey(state)]: 1 };
+    landed.add(act(state, 'stack', 'a1', 'b1').board[sq('b1')].power);
+  }
+  assert.ok(landed.size > 1, 'no Recipe Book: repeats spin again');
+  assert.ok([...landed].every(power => REELS.tame.includes(power)));
+});
+
+test('a third piece spins the super reel, and stacks top out at 3', () => {
+  let state = position({ ...kings, b3: stack(['bishop', 'rook'], 'fort'), c3: piece('pawn'), a8: piece('rook', 2) });
   assert.ok(getLegalActions(state).some(a => a.kind === 'stack' && a.from === sq('c3') && a.to === sq('b3')));
   state = act(state, 'stack', 'c3', 'b3');
-  assert.equal(state.board[sq('b3')].count, 3);
+  const made = state.board[sq('b3')];
+  assert.equal(made.count, 3);
+  assert.ok(REELS.super.includes(made.power), 'super power replaces the old one');
+  assert.equal(state.chaos.events[0].reel, 'super');
   assert.ok(!getLegalActions(state).some(a => a.kind === 'stack' && (a.to === sq('b3') || a.from === sq('b3'))));
 });
 
-test('three of a kind always makes its signature power', () => {
+test('popping a piece off a 3-high stack spins the normal reel again', () => {
+  const state = position({ ...kings, d4: stack(['rook', 'bishop', 'pawn'], 'wizard'), a8: piece('rook', 2) });
+  const next = act(state, 'unstack', 'd4', 'e4');
+  assert.ok(REELS.tame.includes(next.board[sq('d4')].power));
+  assert.equal(next.chaos.events[0].reel, 'tame');
+});
+
+test('three of a kind hits its jackpot', () => {
   const state = position({ ...kings, a1: stack(['rook', 'rook'], 'fort'), b1: piece('rook'), a8: piece('rook', 2) });
   const next = act(state, 'stack', 'b1', 'a1');
   assert.equal(next.board[sq('a1')].power, 'crusher');
   assert.equal(next.chaos.events[0].power, 'crusher');
+  assert.equal(next.chaos.events[0].reel, 'jackpot');
   assert.ok(targets(next, 'a1').includes('move:a7'), 'slides through pieces');
 });
 
@@ -87,7 +101,7 @@ test('captured stacks come apart into toys, and a toy mixed in rolls a wild powe
   state = applyAction(state, { kind: 'adopt', from: sq('d6'), toy: 'knight' });
   const made = state.board[sq('d6')];
   assert.deepEqual(made.parts, [{ type: 'rook', color: 1 }, { type: 'knight', color: 2 }]);
-  assert.ok(['swappy', 'sneezy', 'pewpew', 'ghosty', 'floaty', 'bouncy'].includes(made.power));
+  assert.ok(REELS.wild.includes(made.power));
   assert.deepEqual(state.chaos.toys[1].map(t => t.type), ['pawn']);
 });
 
@@ -126,8 +140,15 @@ test('Pew Pew zaps without moving, Sneezy pushes, Swappy swaps, Bouncy jumps', (
   assert.ok(targets(bouncy, 'd4').includes('move:d6'));
 });
 
-test('every power has a name, icon and description', () => {
+test('every power has a name, icon and description, and sits on a reel', () => {
   for (const power of Object.values(POWERS)) assert.ok(power.icon && power.name && power.text);
+  for (const id of Object.keys(POWERS)) assert.ok(Object.values(REELS).some(reel => reel.includes(id)), id);
+});
+
+test('Mega also moves like a queen', () => {
+  const mega = position({ ...kings, d4: stack(['pawn', 'knight', 'bishop'], 'mega'), a8: piece('rook', 2) });
+  assert.ok(targets(mega, 'd4').includes('move:d8'));
+  assert.ok(targets(mega, 'd4').includes('move:a7'));
 });
 
 test('seeded random play with stacks and powers stays legal and keeps one king each', () => {

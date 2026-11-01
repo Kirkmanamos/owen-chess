@@ -5,7 +5,7 @@ import { revealDestinations } from './rules/exposure.js';
 import { movementActions } from './rules/movement.js';
 import { combinationActions, stackExperiments } from './rules/pawn-stack.js';
 import { isInCheck, newlyCheckedKing } from './rules/king.js';
-import { actionCost, beginTurn, hasBonusReveal } from './rules/turn.js';
+import { actionCost, beginTurn, hasBonusReveal, turnAllowance } from './rules/turn.js';
 import { evaluateOutcome, positionKey } from './rules/outcome.js';
 import { createChaos, chaosActions, applyChaosAction, captureRewards, updateChaos, publicChaos } from './rules/chaos.js';
 import { changeOwenBoard, discoverPowers } from './rules/powers.js';
@@ -13,8 +13,8 @@ import { changeOwenBoard, discoverPowers } from './rules/powers.js';
 export function createGame(overrides = {}, random = Math.random) {
   const rules = createRules(overrides);
   const state = {
-    rules, board: setupBoard(rules, random), currentPlayer: 1, actionsLeft: rules.turn.actionsPerTurn,
-    turnNumber: 1, actionNumber: 0, turnActivity: false, bonusRevealPending: false, response: null, responseQueue: [],
+    rules, board: setupBoard(rules, random), currentPlayer: 1, actionsLeft: turnAllowance(rules, 1),
+    turnNumber: 1, turnsTaken: { 1: 1, 2: 0 }, actionNumber: 0, turnActivity: false, bonusRevealPending: false, response: null, responseQueue: [],
     captured: [], history: [], result: null, quietActions: 0, repetitions: {}
   };
   state.repetitions[positionKey(state)] = 1;
@@ -142,8 +142,8 @@ function describeAction(before, after, action) {
   return `Moved ${from} → ${to}.${captureText}${promotion}${scoutText}`;
 }
 
-function switchTurn(state, player) {
-  beginTurn(state, player);
+function switchTurn(state, player, isResponse = false) {
+  beginTurn(state, player, isResponse);
   state.turnActivity = false;
 }
 
@@ -185,7 +185,7 @@ export function applyAction(state, requested) {
   while (next.responseQueue.length && !isInCheck(next, next.responseQueue[0].player)) next.responseQueue.shift();
   if (next.responseQueue.length) {
     next.response = next.responseQueue.shift();
-    if (next.currentPlayer !== next.response.player) switchTurn(next, next.response.player);
+    if (next.currentPlayer !== next.response.player) switchTurn(next, next.response.player, true);
     next.actionsLeft = 1;
   } else {
     // Owen's Rules: your first stack each turn (including a Toy Box toy) is free.
@@ -219,6 +219,7 @@ export function publicView(state) {
       ? { owner: piece.owner, revealed: true, type: piece.type, count: piece.count, ...(piece.parts && { parts: piece.parts.map(part => ({ ...part })), power: piece.power }) }
       : { owner: piece.owner, revealed: false })),
     currentPlayer: state.currentPlayer, turnNumber: state.turnNumber, actionsLeft: state.actionsLeft,
+    turnAllowance: state.response ? 1 : turnAllowance(state.rules, state.turnsTaken[state.currentPlayer]),
     bonusRevealPending: state.bonusRevealPending,
     actionNumber: state.actionNumber, response: state.response && { ...state.response },
     preparation: isPreparationResponse(state), result: state.result && { ...state.result },

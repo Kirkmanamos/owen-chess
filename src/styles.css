@@ -71,10 +71,89 @@
 .square.power-preview::before{content:"✨";position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(12px,2vw,22px);z-index:3;pointer-events:none;animation:preview-twinkle 1.3s ease-in-out 2 both;background:radial-gradient(circle,#ffe9a880 0,transparent 65%)}
 @keyframes preview-twinkle{0%,100%{opacity:0;transform:scale(.5)}50%{opacity:1;transform:scale(1)}}
 .laser{height:6px;border-radius:6px;transform-origin:0 50%;background:linear-gradient(90deg,#fff,#ff5a5a 30%,#ffd23f);box-shadow:0 0 12px #ff5a5a,0 0 4px #fff;animation:laser .5s ease-out both}@keyframes laser{0%{opacity:0;clip-path:inset(0 100% 0 0)}30%{opacity:1;clip-path:inset(0 0 0 0)}100%{opacity:0}}
-.recipe-book{margin-top:12px;padding-top:12px;border-top:1px dashed var(--owen-line)}.recipe{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;padding:5px 7px;border-radius:7px;background:#fff;border:1px solid #efe3c7;margin:5px 0}.recipe-parts{font-family:"Arial Unicode MS","Segoe UI Symbol",Georgia,serif;font-size:15px;letter-spacing:1px}.recipe-power{font-weight:650;white-space:nowrap}.recipe.fresh{animation:recipe-in 1.4s cubic-bezier(.3,1.5,.5,1) both;border-color:#e0a03c;background:#fff4dc}
-@keyframes recipe-in{0%{transform:scale(.6);opacity:0}30%{transform:scale(1.06);opacity:1}100%{transform:none}}
-.triples{display:flex;align-items:center;gap:5px;margin-top:8px}.triples .micro-label{margin-right:auto}.triple{width:24px;height:24px;display:grid;place-items:center;border-radius:6px;background:#f1ebdc;font-size:13px;filter:grayscale(1);opacity:.6}.triple.found{filter:none;opacity:1;background:#fff4dc;border:1px solid var(--owen-line)}
 .toast-eyebrow{font-size:10px;font-weight:800;letter-spacing:1.4px;color:var(--owen)}.owen-toast-card.kind-power.new{border-color:#ffd93d;box-shadow:0 0 0 4px #ff9f6b,0 0 0 8px #c77dff,0 18px 50px #18392e50}.owen-toast-card.kind-power .toast-detail{max-width:300px;line-height:1.5}
 .owen-button.wide{width:100%;justify-content:flex-start}
 @media(prefers-reduced-motion:reduce){.square.power-preview::before{opacity:1}}
-.recipe-list{max-height:176px;overflow:auto;margin-right:-6px;padding-right:6px}
+/* Action keeper: one token per action this turn, under the board. */
+.action-keeper{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:14px;padding:12px 16px;border-radius:16px;background:#fff;border:2px solid var(--line);box-shadow:0 4px 0 var(--line)}.action-keeper.p1{border-color:#e6cc98;box-shadow:0 4px 0 #e6cc98}.action-keeper.p2{border-color:#a9c4b9;box-shadow:0 4px 0 #a9c4b9}
+.keeper-title{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}.keeper-tokens{display:flex;gap:7px}.keeper-count{font-size:15px}
+.keeper-token{width:26px;height:26px;border-radius:50%;border:3px solid #0002;box-shadow:inset 0 -4px 0 #0002,0 2px 0 #0002;transition:transform .25s,opacity .25s}.keeper-token.p1{background:#e3b45c}.keeper-token.p2{background:#4d8a79}
+.keeper-token.spent{background:transparent;border-style:dashed;box-shadow:none;opacity:.55;transform:scale(.8)}.keeper-token.fresh{animation:token-pop .45s cubic-bezier(.3,1.6,.5,1)}
+.keeper-extras{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}.keeper-chip{font-size:11px;font-weight:600;padding:5px 9px;border-radius:20px;background:#fff6e4;border:1px solid var(--owen-line);color:#8a3d1c}.keeper-chip.warm{background:#eaf4ff;border-color:#a9c8e8;color:#25507a}
+@keyframes token-pop{from{transform:scale(0) rotate(-90deg)}to{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.keeper-token.fresh{animation:none}}
+@media(max-width:680px){.action-keeper{padding:10px 12px;gap:8px 10px}.keeper-token{width:22px;height:22px}.keeper-extras{margin-left:0}}
+/* Power slots: three windows spin and stop on the power the engine picked. */
+.owen-toast.show .owen-toast-card.kind-power{animation-duration:4.6s;min-width:260px}
+.slot-machine{display:flex;gap:8px;padding:10px;margin:4px 0 2px;border-radius:16px;background:linear-gradient(#ff6b6b,#e0475b);box-shadow:inset 0 -5px 0 #0003,0 6px 0 #a3283a}
+.reel-wild .slot-machine{background:linear-gradient(#5ec8f2,#3a9bd6);box-shadow:inset 0 -5px 0 #0003,0 6px 0 #22679a}
+.reel-super .slot-machine,.reel-jackpot .slot-machine{background:linear-gradient(#ffd23f,#f5a623);box-shadow:inset 0 -5px 0 #0003,0 6px 0 #b9741a,0 0 0 4px #c77dff}
+.slot-window{width:58px;height:52px;overflow:hidden;border-radius:10px;background:#fff;box-shadow:inset 0 6px 8px -4px #0005,inset 0 -6px 8px -4px #0005}
+.slot-strip{display:flex;flex-direction:column}.slot-icon{height:52px;display:grid;place-items:center;font-size:32px;line-height:1}
+.slot-window.landed{animation:slot-land .35s cubic-bezier(.3,1.6,.5,1)}
+.slot-result{opacity:0;animation:slot-result .4s 1.7s cubic-bezier(.3,1.5,.5,1) both}
+.reel-jackpot .slot-window.landed,.reel-super .slot-window.landed{background:#fff7d1}
+@keyframes slot-land{50%{transform:scale(1.12)}}
+@keyframes slot-result{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.slot-result{animation:none;opacity:1}.slot-window.landed{animation:none}}
+.power-reels{margin-top:12px;padding-top:12px;border-top:1px dashed var(--owen-line)}
+.reel-row{display:flex;align-items:center;gap:8px;padding:6px 0}.reel-label{font-size:11px;font-weight:600;min-width:78px;color:var(--muted)}
+.reel-icons{display:flex;flex-wrap:wrap;gap:4px}.reel-icon{width:28px;height:28px;display:grid;place-items:center;font-size:17px;border-radius:8px;background:#fff;border:1px solid var(--line);cursor:help}
+.reel-super .reel-icon{background:#fff7d1;border-color:#f0c55a}.reel-wild .reel-icon{background:#eaf6fd;border-color:#a9d5ee}
+.reel-icon.landed{border:2px solid var(--owen);transform:scale(1.15);animation:slot-land .5s 1.8s both}
+/* Toy box theme: a playroom wall, a wooden board, and painted blocks. Mystery
+   blocks are solid team color; a flipped block has a cream face. */
+:root{--round:ui-rounded,"SF Pro Rounded","Nunito","Avenir Next","Segoe UI",system-ui,sans-serif;--chunky:"Arial Rounded MT Bold",ui-rounded,"SF Pro Rounded","Nunito","Trebuchet MS",sans-serif;--ink:#33261a;--muted:#6b5b4a;--line:#ecd9ae;--paper:#fffdf5;--green:#23803d;--gold:#e0a100;--danger:#d6322e;--owen:#b8470f;--owen-line:#ffd24d;--owen-paper:#fffbea;--p1:#e8413c;--p1-dark:#a92320;--p1-soft:#ffd9d3;--p2:#2f7fe0;--p2-dark:#1b4f9e;--p2-soft:#d3e6ff;--pick:#7b3fe4;font-family:var(--round);color:var(--ink);background:#fff1c4}
+body{position:relative;background-color:#fff1c4;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cg fill-opacity='.16'%3E%3Ccircle cx='32' cy='38' r='13' fill='%23e8413c'/%3E%3Crect x='128' y='22' width='24' height='24' rx='6' fill='%232f7fe0' transform='rotate(14 140 34)'/%3E%3Cpath d='M78 104l16 28H62z' fill='%2323a04a'/%3E%3Cpath d='M180 112h8v12h12v8h-12v12h-8v-12h-12v-8h12z' fill='%23f5a300'/%3E%3Ccircle cx='128' cy='182' r='10' fill='%237b3fe4'/%3E%3Crect x='24' y='170' width='22' height='22' rx='6' fill='%23f5a300' transform='rotate(-12 35 181)'/%3E%3C/g%3E%3C/svg%3E")}
+body::before{content:"";position:absolute;inset:0 0 auto;height:34px;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='34'%3E%3Cpath d='M0 3h200' stroke='%2333261a' stroke-opacity='.35' stroke-width='2'/%3E%3Cpath d='M4 3h32L20 30z' fill='%23e8413c'/%3E%3Cpath d='M44 3h32L60 30z' fill='%23ffc933'/%3E%3Cpath d='M84 3h32l-16 27z' fill='%232f7fe0'/%3E%3Cpath d='M124 3h32l-16 27z' fill='%2340b25a'/%3E%3Cpath d='M164 3h32l-16 27z' fill='%237b3fe4'/%3E%3C/svg%3E") repeat-x}
+.site-header{border-bottom:0;padding-top:30px}
+.brand,h1,h2,.panel h2,.selection-title,.info-dialog h2,.handoff-dialog h2,.owen-toast-card strong,.handoff-mark,.toast-stamp,.burst-word,.page-footer span:first-child{font-family:var(--chunky);font-weight:normal;letter-spacing:0;font-style:normal}
+.brand small{font-family:var(--round);font-weight:800;color:var(--p1-dark)}
+.brand-mark{background:var(--p1);color:#fff8e6;border-radius:12px;box-shadow:inset 0 3px 0 #fff5,inset 0 -5px 0 #0003,0 4px 0 var(--p1-dark);transform:rotate(-6deg)}
+h1{color:var(--p1);text-shadow:0 3px 0 #ffc933}.intro>p{font-size:13px;font-weight:600;color:var(--muted)}.eyebrow{color:var(--p2-dark);font-weight:800}.version{color:var(--muted);font-weight:700}
+.micro-label{font-size:8px;font-weight:700}.muted{font-size:13px;line-height:1.6}
+/* Buttons press down like real toys. */
+.button{gap:8px;border:2px solid var(--line);border-radius:14px;background:#fff;font-weight:800;box-shadow:0 4px 0 var(--line);text-decoration:none;transition:transform .08s,box-shadow .08s,background .15s}.button:hover{background:#fff7dc;transform:translateY(-1px);box-shadow:0 5px 0 var(--line)}.button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--line)}
+.button.subtle{background:#fff;border-color:var(--line)}
+.button.primary,#confirm-restart{background:var(--p1);border-color:var(--p1-dark);color:#fff;box-shadow:0 4px 0 var(--p1-dark)}.button.primary:hover,#confirm-restart:hover{background:#d6322e;box-shadow:0 5px 0 var(--p1-dark)}.button.primary:active,#confirm-restart:active{box-shadow:0 1px 0 var(--p1-dark)}
+#new-game{background:#ffc933;border-color:#c98f00;box-shadow:0 4px 0 #c98f00}#new-game:hover{background:#ffd65c;box-shadow:0 5px 0 #c98f00}#new-game:active{box-shadow:0 1px 0 #c98f00}
+.mode-button{border:2px solid var(--line);border-radius:12px;background:#fff;font-weight:700;font-size:12px}.mode-button.active{background:#ffc933;border-color:#c98f00}
+.owen-button{border:2px solid #e8b400;background:#fff3c2;box-shadow:0 3px 0 #e8b400}.owen-button:hover{background:#ffe88f;box-shadow:0 4px 0 #e8b400}.owen-button:active{box-shadow:0 1px 0 #e8b400}
+.settings-button{font-weight:700;padding:10px 14px;background:#fff;border:2px solid var(--line);border-radius:14px;box-shadow:0 3px 0 var(--line)}.privacy-toggle{font-weight:600}
+.turn-player strong{font-family:var(--chunky);font-weight:normal;font-size:16px}.turn-player span:not(.player-dot){font-size:11px;font-weight:600}.turn-count{border:2px solid var(--line);background:#fff;border-radius:20px;font-weight:800}
+.player-dot.p1{background:var(--p1)}.player-dot.p2{background:var(--p2)}.player-dot{box-shadow:0 0 0 4px #fff}
+.status{background:#fff;border:2px solid var(--line);border-radius:14px;font-weight:600}.status.check{background:#ffe0d6;border-color:#f3a48f;color:#8f2415}.status.finished{background:var(--green);border-color:var(--green);color:#fff}
+/* The wooden board on a green play mat. */
+.board-frame{background:repeating-linear-gradient(92deg,#0000 0 22px,#8a542414 22px 25px,#0000 25px 61px),#dca45f;border:0;border-radius:24px;box-shadow:inset 0 3px 0 #fff4,0 8px 0 #a4672c,0 18px 26px #6b421a33}
+.board{border-radius:12px;box-shadow:0 0 0 4px #8a5424}.rank-labels,.file-labels{color:#47290e;font-weight:800;font-size:11px}
+.square{background:#fff3cf}.square.dark{background:#7fc97d}.square:hover{box-shadow:inset 0 0 0 3px #33261a40}.square:focus-visible{outline-color:var(--pick)}
+.square.last-action{background:#ffe89a}.square.dark.last-action{background:#c3dc6c}.square.selected,.square.dark.selected{background:#ffd23f;box-shadow:inset 0 0 0 4px #e08a00}
+/* Painted blocks. */
+.tile,.tile.power-up{border-radius:26%}.tile{transition:transform .12s;box-shadow:inset 0 2px 0 #fff8,0 4px 0 var(--edge),0 7px 5px #33261a40}.square:hover .tile:not(.stack){transform:translateY(-2px)}
+.tile.p1{--edge:var(--p1-dark);background:#fff8e6;color:var(--p1-dark);border:4px solid var(--p1);box-shadow:inset 0 2px 0 #fff8,0 4px 0 var(--edge),0 7px 5px #33261a40}
+.tile.p2{--edge:var(--p2-dark);background:#fff8e6;color:var(--p2-dark);border:4px solid var(--p2);box-shadow:inset 0 2px 0 #fff8,0 4px 0 var(--edge),0 7px 5px #33261a40}
+.tile.hidden.p1{background:var(--p1);border-color:var(--p1);color:#fff}.tile.hidden.p2{background:var(--p2);border-color:var(--p2);color:#fff}
+.tile.hidden{box-shadow:inset 0 3px 0 #fff5,inset 0 -5px 0 #0002,0 4px 0 var(--edge),0 7px 5px #33261a40}.tile.hidden::before{inset:9%;border:2px dashed #fff;border-radius:20%;opacity:.45}.tile.hidden .seal{font-family:var(--chunky);font-size:.72em;opacity:1;text-shadow:0 2px 0 var(--edge)}
+.square.revealable .tile,.square.revealable .tile.p2{outline:3px dashed var(--ink);outline-offset:2px}
+.tile.stack{box-shadow:0 4px 0 -1px var(--edge),0 7px 0 -1px #fff8e6,0 10px 0 -1px var(--edge),0 12px 5px #33261a50;transform:translateY(-4px)}.tile.stack.p2{box-shadow:0 4px 0 -1px var(--edge),0 7px 0 -1px #fff8e6,0 10px 0 -1px var(--edge),0 12px 5px #33261a50}
+.tile.tall,.tile.tall.p2{box-shadow:0 4px 0 -1px var(--edge),0 7px 0 -1px #fff8e6,0 10px 0 -1px var(--edge),0 13px 0 -1px #fff8e6,0 16px 0 -1px var(--edge),0 18px 5px #33261a50;transform:translateY(-8px)}
+.stack-count{background:#ffc933;color:var(--ink);border:2px solid #fff;font-weight:800}.power-badge{background:#ffc933;border:2px solid #fff}
+.part.p1,.toy.p1,.ghost.p1{background:#fff8e6;color:var(--p1-dark);border:2px solid var(--p1)}.part.p2,.toy.p2,.ghost.p2{background:#fff8e6;color:var(--p2-dark);border:2px solid var(--p2)}.part,.toy,.ghost{border-radius:30%}
+.square.legal::after{background:#7b3fe4b0;box-shadow:0 0 0 2px #fff}.square.legal:has(.tile)::after{border:4px solid var(--pick);border-radius:26%;box-shadow:0 0 0 2px #fff}.legend-dot{background:var(--pick)}.legend-ring{border-color:var(--ink)}
+.square.stack-partner::before{background:var(--pick);box-shadow:0 0 0 2px #fff}.square.stack-partner .tile{outline:3px dashed var(--pick)}.square.in-check .tile{outline:4px solid #ff2d2d}
+.board-footer{font-weight:600;font-size:11px}
+/* Panels are chunky cards, one color each. */
+.panel{background:var(--paper);border:3px solid var(--line);border-radius:20px;box-shadow:0 5px 0 var(--line)}.action-panel{border-color:#ffb3a8;box-shadow:0 5px 0 #ffb3a8}.armies-panel{border-color:#a9cdf5;box-shadow:0 5px 0 #a9cdf5}.history-panel{border-color:#a8dcae;box-shadow:0 5px 0 #a8dcae}.owen-panel{border-color:#ffd24d;box-shadow:0 5px 0 #ffd24d;background:var(--owen-paper)}
+.goal-card{border:3px dashed #ffc933;border-radius:16px}.goal-track{height:12px;background:#f3e6c4}.goal-fill.p1{background:var(--p1)}.goal-fill.p2{background:var(--p2)}.owen-mood{border-radius:12px;font-weight:600;background:#fff3c2;color:#5c4a1c}.selection-coordinate{background:#fff3c2;font-weight:700}
+.history li{border-bottom:2px dotted var(--line)}.page-footer{border-top:0;color:var(--muted);font-weight:600}.page-footer span:first-child{color:var(--p1-dark)}
+.action-keeper{background:#fff;border-width:3px;border-radius:20px;margin-top:20px}.action-keeper.p1{border-color:var(--p1);box-shadow:0 5px 0 var(--p1-dark)}.action-keeper.p2{border-color:var(--p2);box-shadow:0 5px 0 var(--p2-dark)}
+.keeper-title{font-weight:800;color:var(--ink)}.keeper-count{font-family:var(--chunky);font-weight:normal;font-size:17px}.keeper-token{width:30px;height:30px;border-radius:28%;border:0;box-shadow:inset 0 2px 0 #fff6,inset 0 -5px 0 #0003,0 3px 0 var(--edge)}.keeper-token.p1{--edge:var(--p1-dark);background:var(--p1)}.keeper-token.p2{--edge:var(--p2-dark);background:var(--p2)}.keeper-token.spent{background:transparent;border:3px dashed #b9a98f;box-shadow:none;opacity:1}
+.keeper-chip{font-weight:700;background:#fff3c2;border:2px solid #ffc933;color:#5c4a1c}.keeper-chip.warm{background:var(--p2-soft);border-color:var(--p2);color:var(--p2-dark)}
+@media(max-width:680px){.keeper-token{width:24px;height:24px}.site-header{padding-top:26px}}
+/* Dialogs and announcements. */
+dialog{border:4px solid #ffc933;border-radius:26px}dialog::backdrop{background:#4a2c7ab0;backdrop-filter:blur(6px)}.field select{border:2px solid var(--line);border-radius:12px;font-weight:600}.check-field{font-weight:600}.check-field input,.privacy-toggle input{accent-color:var(--p1)}.rule-block{border-top:2px dotted var(--line)}
+.handoff-mark{border-radius:26%;border:0;background:var(--p1);color:#fff8e6;box-shadow:inset 0 3px 0 #fff5,inset 0 -6px 0 #0003,0 5px 0 var(--p1-dark)}.handoff-mark.p2{background:var(--p2);color:#fff8e6;box-shadow:inset 0 3px 0 #fff5,inset 0 -6px 0 #0003,0 5px 0 var(--p2-dark)}
+.owen-toast.show .owen-toast-card{border:4px solid #ffc933;border-radius:24px;box-shadow:0 6px 0 #e0a100,0 18px 40px #33261a50}.toast-stamp{color:var(--p1);border-color:var(--p1)}.reward{border-color:#ffc933;background:#fff3c2;color:#5c4a1c}.burst{background:var(--p1)}
+/* Keep the board and the action keeper on screen together on a laptop. */
+.intro{margin:10px 0 16px}h1{text-shadow:0 2px 0 #fff}
+@media(min-width:901px){.play-area{grid-template-columns:min(630px,max(440px,calc(100dvh - 410px))) minmax(292px,1fr);gap:28px}}

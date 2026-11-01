@@ -9,9 +9,16 @@ export function hasBonusReveal(rules) {
   return rules.turn.bonusReveal && rules.turn.revealCostsAction;
 }
 
-export function beginTurn(state, player) {
+// A player's own first turns can get extra actions to speed up the opening.
+export function turnAllowance(rules, ownTurn) {
+  return rules.turn.openingRamp[ownTurn - 1] ?? rules.turn.actionsPerTurn;
+}
+
+// A king response is not a real turn, so it does not use up an opening turn.
+export function beginTurn(state, player, isResponse = false) {
   state.currentPlayer = player;
-  state.actionsLeft = state.rules.turn.actionsPerTurn;
+  if (!isResponse) state.turnsTaken = { ...state.turnsTaken, [player]: state.turnsTaken[player] + 1 };
+  state.actionsLeft = turnAllowance(state.rules, state.turnsTaken[player]);
   state.bonusRevealPending = false;
   state.turnNumber += 1;
 }

@@ -1,6 +1,6 @@
 {
   "name": "owens-rules",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "Owen's Rules, a two-player hidden-army chess game, and Opening Arena, a chess openings trainer",

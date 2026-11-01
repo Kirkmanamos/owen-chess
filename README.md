@@ -1,4 +1,4 @@
-# Owen's Rules — Version 0.7.0
+# Owen's Rules — Version 0.8.0
 
 A playable local two-player prototype of a hidden-army chess game where the goal keeps changing. The rules are deliberately experimental.
 
@@ -28,10 +28,11 @@ npm run build  # Copy browser assets into dist/ for static hosting
 
 1. Player 1 occupies **a1–d4**, and Player 2 occupies **a5–d8**. Both armies are shuffled and face down. Files e–h begin empty.
 2. Select an outlined hidden tile, then choose a highlighted destination: **1–4 squares right**, **1 square forward**, or **1 square left**. The entire path and destination must be empty; there is no jumping or capture. Flip **where it lands**. The whole slide and reveal costs one action, regardless of distance or the piece underneath. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. A pawn revealed on its far rank promotes to a queen.
-3. Turns switch immediately, so the next player can act without dismissing a popup. On later turns, reveal another tile or use a revealed piece's chess movement. Clearing a square can open new reveal routes for nearby hidden tiles.
-4. Attack a hidden enemy to challenge it: the target flips in place, and the attacker stays put. Kings are never captured. Newly exposed kings in check receive a response action.
-5. Any of your pieces except the king can **Stack** with another of yours. See *Owen's Rules* below.
-6. Win by collecting Owen's crowns, or by checkmate. **How to play** explains the current rules; **Playtest rules** changes selected rules when starting a fresh game.
+3. **Fast start:** each player's first turn has **3 actions** and their second has **2**. After that, turns have 1 action. Both can be changed in **Playtest rules**. The **action keeper** under the board shows a token for each action this turn; spent ones turn into empty slots, and a Sugar Rush adds a token.
+4. Turns switch immediately, so the next player can act without dismissing a popup. On later turns, reveal another tile or use a revealed piece's chess movement. Clearing a square can open new reveal routes for nearby hidden tiles.
+5. Attack a hidden enemy to challenge it: the target flips in place, and the attacker stays put. Kings are never captured. Newly exposed kings in check receive a response action.
+6. Any of your pieces except the king can **Stack** with another of yours. See *Owen's Rules* below.
+7. Win by collecting Owen's crowns, or by checkmate. **How to play** explains the current rules; **Playtest rules** changes selected rules when starting a fresh game.
 
 Use mouse/touch, or Tab to enter the board, arrow keys to navigate, and Enter/Space to select. Escape clears a tile selection. The **Pass-device screen between turns** checkbox is off by default. Enable it at any point if you want the board hidden between players; when enabled, the next player presses a ready button. This changes presentation only, not turn costs or game state.
 
@@ -58,9 +59,9 @@ The original game was invented by a 4-year-old, so the way to win keeps changing
 - **Captures pay off.** Captured pieces fly into your **Toy Box**. Catching anything bigger than a pawn gives a **Sugar Rush**: one extra action right away, once per turn. Giving check still ends the turn, and king responses never earn one. Every 4 toys earns a Not Fair token.
 - **Unicorns.** Every knight is a unicorn: the same knight piece, with a horn. It still moves exactly like a knight.
 - **Stack anything.** Any of your pieces except the king can stack with another of yours up to 2 squares away, up to 3 high. Select a piece, then click a piece marked **+**. **Your first stack each turn is free**, so you can use the new stack right away.
-- **Every new mix invents a power.** A stack moves like all of its pieces combined (a pawn inside steps one square any way), plus a power. The first time anyone makes a new mix, Owen rolls a random power for it, and the public **Recipe Book** keeps it for the rest of the game. Powers include Bouncy, Froggy, Floaty, Ghosty, Fort (can't be captured), Sticky (freezes touching enemies), Swappy, Sneezy (pushes touching enemies away), and Pew Pew (zaps 2 squares away).
-- **Toys and three of a kind.** Stack a toy from your Toy Box onto one of your pieces; mixes with a toy roll from a wilder pool. Three of a kind always makes a secret super power: Choo-Choo (3 pawns), Rainbow Unicorn, Wizard, Castle Crusher, and Mega Queen. **Pop off** removes your own top piece; toys stay stuck on. A captured stack comes apart into separate toys.
-- **Powers show up at once.** A new power gets an announcement, a rainbow ring and badge on the stack, a Recipe Book entry, and sparkles on every square it can now reach. If it's still your turn, the stack stays selected with its moves highlighted.
+- **Every stack spins the power slots.** A stack moves like all of its pieces combined (a pawn inside steps one square any way), plus a power. Each time you stack, three slot reels spin and land on a power, so the same mix can get a different power next time. Powers on the normal reel: Bouncy, Froggy, Floaty, Ghosty, Fort (can't be captured), and Sticky (freezes touching enemies). The **Power reels** panel shows every reel.
+- **Toys, super spins and jackpots.** Stacking a toy from your Toy Box onto one of your pieces spins the wild reel: Swappy, Sneezy (pushes touching enemies away), Pew Pew (zaps 2 squares away), Ghosty, Floaty and Bouncy. Stacking a third piece on top spins the **super reel**: Choo-Choo (slides like a rook), Rainbow Unicorn (one or two unicorn hops), Wizard (teleports to any empty square of its color), Castle Crusher (slides like a rook through pieces) and Mega (also moves like a queen). Three of a kind always hits its jackpot: 🚂 pawns, 🌈 unicorns, 🧙 bishops, 🏰 rooks, 💥 queens. **Pop off** removes your own top piece and spins the normal reel again for what's left; toys stay stuck on. A captured stack comes apart into separate toys.
+- **Powers show up at once.** A power gets its slot spin, a rainbow ring and badge on the stack, a highlight on the Power reels panel, and sparkles on every square it can now reach. If it's still your turn, the stack stays selected with its moves highlighted.
 
 Each attacker has its own capture sprite: the pawn waddles in for a **CHOMP!**, the unicorn hops for a **NEIGH!**, the bishop teleports with a **ZAP!**, the rook slams for a **CRASH!** that shakes the board, the queen spins in for a **KAPOW!**, the king stomps for a **BONK!**, and a pawn stack does a **SQUISH!**. The captured piece pops out and flies into the Toy Box. Reward bubbles show Sugar Rushes and new tokens.
 
@@ -81,14 +82,15 @@ Announcements pop up over the board without blocking it. Goal cards flip in, pro
 | `src/rules/turn.js` | Action costs and turn allowance |
 | `src/rules/outcome.js` | Checkmate, stalemate, repetition, and quiet-action draws |
 | `src/rules/chaos.js` | Owen's Rules: goal deck, crowns, boredom, "No! You play like this!", Not Fair tokens, capture rewards |
-| `src/rules/powers.js` | Owen's stacks: any-piece stacking, Toy Box toys, recipes, power geometry and power actions |
+| `src/rules/powers.js` | Owen's stacks: any-piece stacking, Toy Box toys, the power reels, power geometry and power actions |
 | `src/rules/random.js` | Seeded randomness stored in the game state |
 | `src/main.js` | DOM rendering and input; no movement-rule implementations. Every game starts with `chaos.enabled`, since Owen's Rules is the only mode |
 | `tests/engine.test.js` | Rule scenarios, privacy invariants, and material conservation |
 | `tests/exposure.test.js` | Reveal distances, blockers, player directions, promotion, privacy and king responses |
 | `tests/stack-experiments.test.js` | All eight experiment combinations, compound actions, scouting privacy and king responses |
-| `tests/owen-stacks.test.js` | Any-piece stacks, free first stack, recipes, triples, toys, pop-off and every special power |
+| `tests/owen-stacks.test.js` | Any-piece stacks, free first stack, reel spins, super spins, jackpots, toys, pop-off and every special power |
 | `tests/owen-rules.test.js` | Goal completion, tallies, goal swaps when someone is close, boredom, tokens, locks, privacy and seeded replay |
+| `tests/opening-ramp.test.js` | Fast start: 3, then 2, then the normal allowance, and king responses not using it up |
 | `tests/bonus-reveal.test.js` | Bounded reveal turns, skipping, check responses, privacy, stacking interactions and seeded play |
 | `openings/`, `tests/openings/` | Opening Arena and its tests; see [openings/README.md](openings/README.md) |
 

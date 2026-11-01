@@ -3,25 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f3f1e9">
+  <meta name="theme-color" content="#fff1c4">
   <title>Owen’s Rules · The goal keeps changing</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232c4941'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-size='48' fill='%23f7f2df'%3E♚%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e8413c'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-size='48' fill='%23f7f2df'%3E♚%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="./src/styles.css">
 </head>
 <body>
   <div class="page-shell">
     <header class="site-header">
       <a class="brand" href="./" aria-label="Owen’s Rules home"><span class="brand-mark" aria-hidden="true">♚</span><span>Owen’s Rules<small>THE GOAL KEEPS CHANGING</small></span></a>
-      <div class="header-actions"><a class="button subtle" href="./openings/">Opening Arena <span aria-hidden="true">↗</span></a><span class="version">LOCAL PLAY <span>·</span> V0.7.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
+      <div class="header-actions"><a class="button subtle" href="./openings/">Opening Arena <span aria-hidden="true">↗</span></a><span class="version">LOCAL PLAY <span>·</span> V0.8.0</span><button id="rules-button" class="button subtle">How to play</button><button id="new-game" class="button">New game <span aria-hidden="true">↗</span></button></div>
     </header>
 
     <main>
-      <div class="intro"><div><p class="eyebrow">THE ARMY IS A MYSTERY. THE STRATEGY IS YOURS.</p><h1>Uncover your next move.</h1></div><p>Two players. Thirty-two hidden tiles.<br>A familiar board with unfamiliar possibilities.</p></div>
+      <div class="intro"><div><p class="eyebrow">INVENTED BY A 4-YEAR-OLD</p><h1>Owen changes the goal. Keep up!</h1></div><p>Two players. Thirty-two mystery blocks.<br>Flip them, stack them, spin for powers.</p></div>
       <div class="play-area">
         <section class="board-section" aria-label="Game board and turn status">
           <div class="turn-bar"><div class="turn-player"><span id="turn-dot" class="player-dot p1"></span><div><strong id="turn-title"></strong><span id="turn-subtitle"></span></div></div><div class="turn-tags"><span id="turn-count" class="turn-count"></span></div></div>
           <div id="status" class="status" role="status" aria-live="polite"></div>
           <div class="board-frame"><div id="owen-toast" class="owen-toast" role="status" aria-live="polite"></div><div class="board-surround"><div id="rank-labels" class="rank-labels" aria-hidden="true"></div><div id="board" class="board" role="group" aria-label="Chessboard. Select a hidden tile to see its legal reveal destinations. Forward is toward rank 8 for Player 1 and rank 1 for Player 2. Use arrow keys to navigate."></div><div id="file-labels" class="file-labels" aria-hidden="true"></div></div></div>
+          <div id="action-keeper" class="action-keeper" role="status" aria-live="polite"></div>
           <div class="board-footer"><span><i class="legend-ring"></i> Can reveal</span><span><i class="legend-dot"></i> Legal action</span><span id="direction-label">Player 1 moves ↑</span></div>
         </section>
 
@@ -34,17 +35,18 @@
           <button id="settings-button" class="settings-button"><span aria-hidden="true">⚙</span> Playtest rules <span aria-hidden="true">↗</span></button>
         </aside>
       </div>
-      <footer class="page-footer"><span>Reveal. Maneuver. Surprise.</span><span>An evolving game · Rules are made to be playtested.</span></footer>
+      <footer class="page-footer"><span>Flip. Stack. Spin. Giggle.</span><span>An evolving game · Rules are made to be playtested.</span></footer>
     </main>
   </div>
 
   <dialog id="handoff" class="handoff-dialog" aria-labelledby="handoff-title" aria-describedby="handoff-copy"><div id="handoff-mark" class="handoff-mark p1" aria-hidden="true">♚</div><p class="eyebrow">A MOMENT BETWEEN MOVES</p><h2 id="handoff-title"></h2><p id="handoff-copy">Pass the device. Hidden identities stay unknown to both players until a tile is revealed.</p><button id="ready-button" class="button primary wide"></button><p class="dialog-footnote">Share the board. Keep the mystery.</p></dialog>
 
-  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.7.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
+  <dialog id="rules-dialog" class="info-dialog" aria-labelledby="rules-title"><div class="dialog-heading"><p class="eyebrow">VERSION 0.8.0 · THE TABLE RULES</p><button class="icon-button" data-close="rules-dialog" aria-label="Close rules">×</button></div><h2 id="rules-title">A familiar board.<br>A hidden army.</h2><div id="rules-content"></div><button class="button primary wide" data-close="rules-dialog">Back to the board</button></dialog>
 
   <dialog id="settings-dialog" class="info-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><p class="eyebrow">THE PLAYTEST LAB</p><button class="icon-button" data-close="settings-dialog" aria-label="Close playtest rules">×</button></div><h2 id="settings-title">Try a different rhythm.</h2><p class="muted">These rules apply to a new randomized game. Starting it replaces the current game.</p><form id="settings-form">
     <label class="field">Opening reveal move<select name="exposure"><option value="flexible">1–4 right, or 1 forward or left</option><option value="right-empty">Classic: one square right</option><option value="either-horizontal">Classic: one square left or right</option></select><small>Slide along a clear path into an empty square, then flip. Forward is ↑ for Player 1 and ↓ for Player 2. Distance does not add actions.</small></label>
-    <label class="field">Actions per turn<select name="actions"><option value="1">1 action · original prototype</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
+    <label class="check-field"><input type="checkbox" name="fastStart" checked> Fast start: 3 actions on your first turn, then 2</label>
+    <label class="field">Actions per turn after that<select name="actions"><option value="1">1 action</option><option value="2">2 actions</option><option value="3">3 actions</option></select></label>
     <label class="check-field"><input type="checkbox" name="freeReveal"> Slide-and-reveal is free (unlimited)</label>
     <label class="check-field"><input type="checkbox" name="bonusReveal"> One bonus reveal per turn</label>
     <p class="form-note">Off by default. After your normal action(s), optionally slide and reveal one extra hidden tile, then pass. You can skip it. Check and king responses take priority. Inactive while unlimited free reveals are on.</p>
